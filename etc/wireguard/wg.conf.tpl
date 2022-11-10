@@ -1,0 +1,27 @@
+[Interface]
+ListenPort = 51820
+SaveConfig = true
+PostUp = iptables -I FORWARD -i %i -o ${ext_if} -j ACCEPT
+PostUp = iptables -I FORWARD -o %i -i ${ext_if} -j ACCEPT
+PostUp = iptables -t nat -I POSTROUTING -o ${ext_if} -j MASQUERADE
+PostUp = ip6tables -I FORWARD -i %i -o ${ext_if} -j ACCEPT
+PostUp = ip6tables -I FORWARD -o %i -i ${ext_if} -j ACCEPT
+PostUp = ip6tables -t nat -I POSTROUTING -o ${ext_if} -j MASQUERADE
+PostUp = iptables -A INPUT -d ${ext_ip} -p udp -m udp --dport 51820 -j ACCEPT
+PostUp = iptables -t nat -A PREROUTING -i %i -p udp --dport 53 -j DNAT --to 1.1.1.1
+PostUp = iptables -t nat -A PREROUTING -i %i -p tcp --dport 53 -j DNAT --to 1.1.1.1
+PostUp = ip6tables -t nat -A PREROUTING -i %i -p udp --dport 53 -j DNAT --to 2606:4700:4700::1111
+PostUp = ip6tables -t nat -A PREROUTING -i %i -p tcp --dport 53 -j DNAT --to 2606:4700:4700::1111
+PreDown = iptables -D FORWARD -i %i -o ${ext_if} -j ACCEPT
+PreDown = iptables -D FORWARD -o %i -i ${ext_if} -j ACCEPT
+PreDown = iptables -t nat -D POSTROUTING -o ${ext_if} -j MASQUERADE
+PreDown = ip6tables -D FORWARD -i %i -o ${ext_if} -j ACCEPT
+PreDown = ip6tables -D FORWARD -o %i -i ${ext_if} -j ACCEPT
+PreDown = ip6tables -t nat -D POSTROUTING -o ${ext_if} -j MASQUERADE
+PreDown = iptables -D INPUT -d ${ext_ip} -p udp -m udp --dport 51820 -j ACCEPT
+PreDown = iptables -t nat -D PREROUTING -i %i -p udp --dport 53 -j DNAT --to 1.1.1.1
+PreDown = iptables -t nat -D PREROUTING -i %i -p tcp --dport 53 -j DNAT --to 1.1.1.1
+PreDown = ip6tables -t nat -D PREROUTING -i %i -p udp --dport 53 -j DNAT --to 2606:4700:4700::1111
+PreDown = ip6tables -t nat -D PREROUTING -i %i -p tcp --dport 53 -j DNAT --to 2606:4700:4700::1111
+PreDown = true && while [ $? -eq 0 ]; do iptables -D FORWARD -i %i -o ${ext_if} -j DROP 2>/dev/null; done || true
+PreDown = true && while [ $? -eq 0 ]; do ip6tables -D FORWARD -i %i -o ${ext_if} -j DROP 2>/dev/null; done || true

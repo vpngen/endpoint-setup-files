@@ -1,0 +1,10 @@
+[Unit]
+Description=WG Manager socket
+
+[Socket]
+BindIPv6Only=ipv6-only
+ListenStream=8080
+Accept=yes
+
+[Install]
+WantedBy=sockets.target

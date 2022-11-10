@@ -1,0 +1,10 @@
+[Unit]
+Description=WG Manager
+
+[Service]
+ExecStart=/bin/bash -c '/wg-mng.sh 2>>/wg-mng.error.log'
+StandardInput=socket
+StandardOutput=socket
+
+[Install]
+WantedBy=multi-user.target
