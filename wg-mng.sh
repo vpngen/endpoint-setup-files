@@ -121,7 +121,7 @@ case "${t}" in
                     echo "{\"code\": \"$?\"}"
                 else
                     st="$(ip netns exec \"ns${wgi}\" wg show \"${wgi}\" transfer 2>/dev/null | jq -R -s)"
-                    echo "{\"code\": \"0\", \"result\": \"${st}\", \"timestamp\": \"$(date +%s)\"}"
+                    echo "{\"code\": \"0\", \"result\": ${st}, \"timestamp\": \"$(date +%s)\"}"
                 fi
         ;;
         "/?wg_add" )
