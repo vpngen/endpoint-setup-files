@@ -3,6 +3,14 @@
 # no need to decode "+" symbol, %XX only and filter to base64 plus additionals from second parameter
 function ud_b64() { echo -e "${1//%/\\x}" | sed "s/[^[:alnum:]\+\/=$2]//g"; }
 
+spinlock="`[ ! -z \"${TMPDIR}\" ] && echo -n \"${TMPDIR}/\" || echo -n \"/tmp/\" ; basename \"${0}.spinlock\"`"
+trap "rm -f \"${spinlock}\" 2>/dev/null" EXIT
+while [ -f "${spinlock}" ] ; do
+    sleep 0.1
+done
+touch "${spinlock}" 2>/dev/null
+
+
 #set -x;
 r=read;
 e=echo;
@@ -20,7 +28,7 @@ case "${t}" in
         "/?peer_add" | "/?peer_del" | "/?stat" )
                 if [ "${t}" == "/?peer_add" -o "${t}" == "/?peer_del" ]; then
                     if [ -z "${f[0]}" ]; then
-                        echo "{code: \"129\", error: \"peer public key is not defined\"}"
+                        echo "{\"code\": \"129\", \"error\": \"peer public key is not defined\"}"
                         exit 0
                     else
                         f[0]=`ud_b64 "${f[0]}"`
@@ -57,11 +65,11 @@ case "${t}" in
                     done
                 fi
                 if [ -z "${wgi}" ]; then
-                    echo "{code: \"128\", error: \"no interface found for supplied public key\"}"
+                    echo "{\"code\": \"128\", \"error\": \"no interface found for supplied public key\"}"
                     exit 0
                 fi
                 if [ "${t}" == "/?peer_add" -a -z "${addrs}" ]; then
-                    echo "{code: \"136\", error: \"allowed ips pool can not be empty\"}"
+                    echo "{\"code\": \"136\", \"error\": \"allowed ips pool can not be empty\"}"
                     exit 0
                 fi
                 if [ "${t}" == "/?peer_add" ]; then
@@ -77,13 +85,13 @@ case "${t}" in
                         if [ ! -z "${av6}" -a ! -z "${cv6}" ]; then
                             clv4="`ip -n \"ns${wgi}\" -4 -o a | egrep -v ' wg[0-9]* ' | fgrep ' global ' | cut -d \  -f 7 | cut -d \/ -f 1`"
                             if [ -z "${clv4}" ]; then
-                                echo "{code: \"140\", warning: \"control interface is not set due to incorrect ip address\"}"
+                                echo "{\"code\": \"140\", \"warning\": \"control interface is not set due to incorrect ip address\"}"
                                 exit 0
                             fi
                             chv6="`echo ${clv4} | sed 's/\./\n/g' | xargs printf 'fdcc:%02x%02x:%02x%02x::2' | sed 's/:0000/:/g' | sed 's/:00/:/g'`"
                             cv6ld=`expr $(printf "%d" "0x${cv6##*:}" 2>/dev/null) + 1`
                             if [ "$cv6ld" -le 1 -o "$cv6ld" -ge 65535 ] ; then
-                                echo "{code: \"141\", warning: \"control interface is not set due the last number of control host ipv6 address should be from 0x1 to 0xfffd\"}"
+                                echo "{\"code\": \"141\", \"warning\": \"control interface is not set due the last number of control host ipv6 address should be from 0x1 to 0xfffd\"}"
                                 exit 0
                             fi
 
@@ -106,7 +114,7 @@ case "${t}" in
                             ip6tables -A FORWARD -d "${cv6%:[0-9a-f]*}:`printf \"%x\" \"$cv6ld\"`" -s ${chv6} -p tcp -j ACCEPT
                         fi
                     fi
-                    echo "{code: \"${ec}\"}"
+                    echo "{\"code\": \"${ec}\"}"
                 elif [ "${t}" == "/?peer_del" ]; then
                     av6="`ip netns exec \"ns${wgi}\" wg show ${wgi} allowed-ips | fgrep \"${f[0]}\" | cut -d $'\t' -f 2 | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
                     if [ ! -z "${av6}" -a ! -z "`ip netns exec \"ns${wgi}\" ip6tables-save | fgrep \" ${av6}/\"`" ]; then
@@ -118,21 +126,21 @@ case "${t}" in
                         ip link del "${wgi}veth0"
                     fi
                     ip netns exec "ns${wgi}" wg set "${wgi}" peer "${f[0]}" remove
-                    echo "{code: \"$?\"}"
+                    echo "{\"code\": \"$?\"}"
                 else
                     st="$(ip netns exec \"ns${wgi}\" wg show \"${wgi}\" transfer 2>/dev/null | jq -R -s)"
-                    echo "{code: \"0\", result:${st}, timestamp:\"$(date +%s)\"}"
+                    echo "{\"code\": \"0\", \"result\": ${st}, \"timestamp\": \"$(date +%s)\"}"
                 fi
         ;;
         "/?wg_add" )
                 if [ -z "${f[0]}" ]; then
-                    echo "{code: \"131\", error: \"Wireguard interface private key is not defined\"}"
+                    echo "{\"code\": \"131\", \"error\": \"Wireguard interface private key is not defined\"}"
                     exit 0
                 else
                     f[0]=`ud_b64 "${f[0]}"`
                 fi
                 if [ ! -z "`fgrep -s \"${f[0]}\" /etc/wireguard/wg[0-9]*.conf`" ]; then
-                    echo "{code: \"135\", error: \"Wireguard interface private key is duplicated\"}"
+                    echo "{\"code\": \"135\", \"error\": \"Wireguard interface private key is duplicated\"}"
                     exit 0
                 fi
                 for i in {0..254}; do
@@ -143,7 +151,7 @@ case "${t}" in
                     fi
                 done
                 if [ -z "${wgi}" ]; then
-                    echo "{code: \"132\", error: \"there are no free Wireguard interfaces\"}"
+                    echo "{\"code\": \"132\", \"error\": \"there are no free Wireguard interfaces\"}"
                     exit 0
                 fi
                 for v in "${f[@]:1}"; do
@@ -163,11 +171,11 @@ case "${t}" in
                         esac
                 done
                 if [ -z "${addrs}" ]; then
-                    echo "{code: \"133\", error: \"mandatory parameter internal-nets is not set\"}"
+                    echo "{\"code\": \"133\", \"error\": \"mandatory parameter internal-nets is not set\"}"
                     exit 0
                 fi
                 if [ -z "${ext_ip_nm}" ]; then
-                    echo "{code: \"134\", error: \"mandatory parameter external-ip is not set\"}"
+                    echo "{\"code\": \"134\", \"error\": \"mandatory parameter external-ip is not set\"}"
                     exit 0
                 fi
                 if [ ! -z "${ext_ip_nm##*/[0-9]*}" ]; then
@@ -180,17 +188,17 @@ case "${t}" in
                         fi
                     done
                     if [ -z "${ip_wan_found}" ]; then
-                        echo "{code: \"139\", error: \"mandatory parameter external-ip has no netmask\"}"
+                        echo "{\"code\": \"139\", \"error\": \"mandatory parameter external-ip has no netmask\"}"
                         exit 0
                     fi
                 fi
                 if [ -z "${ext_gw}" ]; then
-                    echo "{code: \"137\", error: \"mandatory parameter external-gateway is not set\"}"
+                    echo "{\"code\": \"137\", \"error\": \"mandatory parameter external-gateway is not set\"}"
                     exit 0
                 fi
                 ext_if="`ip -4 -o a | fgrep \"${ext_ip_nm}\" | cut -d \  -f 2`"
                 if [ -z "${ext_if}" ]; then
-                    echo "{code: \"138\", error: \"no interface found for external-ip\"}"
+                    echo "{\"code\": \"138\", \"error\": \"no interface found for external-ip\"}"
                     exit 0
                 fi
 
@@ -221,11 +229,11 @@ case "${t}" in
                 else
                     systemctl enable wg-quick-ns@"${wgi}"
                 fi
-                echo "{code: \"${ec}\"}"
+                echo "{\"code\": \"${ec}\"}"
         ;;
         "/?wg_del" )
                 if [ -z "${f[0]}" ]; then
-                    echo "{code: \"130\", error: \"Wireguard interface private key is not defined\"}"
+                    echo "{\"code\": \"130\", \"error\": \"Wireguard interface private key is not defined\"}"
                     exit 0
                 else
                     f[0]=`ud_b64 "${f[0]}"`
@@ -239,7 +247,7 @@ case "${t}" in
                     done
                 fi
                 if [ -z "${wgi}" ]; then
-                    echo "{code: \"128\", error: \"no interface found for supplied private key\"}"
+                    echo "{\"code\": \"128\", \"error\": \"no interface found for supplied private key\"}"
                     exit 0
                 fi
                 ccv6="`ip netns exec \"ns${wgi}\" ip -6 -o a | egrep ' wg[0-9]*veth1 ' | fgrep ' global ' | cut -d \  -f 7 | cut -d \/ -f 1`"
@@ -253,11 +261,11 @@ case "${t}" in
                     systemctl disable wg-quick-ns@"${wgi}"
                     rm -f /etc/wireguard/"${wgi}".conf
                 fi
-                echo "{code: \"${ec}\"}"
+                echo "{\"code\": \"${ec}\"}"
         ;;
         "/?wg_block" | "/?wg_unblock" )
                 if [ -z "${f[0]}" ]; then
-                    echo "{code: \"142\", error: \"Wireguard interface public key is not defined\"}"
+                    echo "{\"code\": \"142\", \"error\": \"Wireguard interface public key is not defined\"}"
                     exit 0
                 else
                     f[0]=`ud_b64 "${f[0]}"`
@@ -271,7 +279,7 @@ case "${t}" in
                     done
                 fi
                 if [ -z "${wgi}" ]; then
-                    echo "{code: \"143\", error: \"no interface found for supplied public key\"}"
+                    echo "{\"code\": \"143\", \"error\": \"no interface found for supplied public key\"}"
                     exit 0
                 fi
                 ext_if="`ip netns exec \"ns${wgi}\" ip -4 -o a | egrep -v ' wg[0-9]* ' | fgrep ' global ' | cut -d \  -f 2`"
@@ -288,9 +296,9 @@ case "${t}" in
                         done
                     fi
                 fi
-                echo "{code: \"0\"}"
+                echo "{\"code\": \"0\"}"
         ;;
         * )
-                echo "{code: \"127\", error: \"unimplemented\"}"
+                echo "{\"code\": \"127\", \"error\": \"unimplemented\"}"
         ;;
 esac
