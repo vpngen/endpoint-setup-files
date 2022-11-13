@@ -3,6 +3,14 @@
 # no need to decode "+" symbol, %XX only and filter to base64 plus additionals from second parameter
 function ud_b64() { echo -e "${1//%/\\x}" | sed "s/[^[:alnum:]\+\/=$2]//g"; }
 
+spinlock="`[ ! -z \"${TMPDIR}\" ] && echo -n \"${TMPDIR}/\" || echo -n \"/tmp/\" ; basename \"${0}.spinlock\"`"
+trap "rm -f \"${spinlock}\" 2>/dev/null" EXIT
+while [ -f "${spinlock}" ] ; do
+    sleep 0.1
+done
+touch "${spinlock}" 2>/dev/null
+
+
 #set -x;
 r=read;
 e=echo;
