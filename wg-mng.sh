@@ -128,8 +128,13 @@ case "${t}" in
                     ip netns exec "ns${wgi}" wg set "${wgi}" peer "${f[0]}" remove
                     echo "{\"code\": \"$?\"}"
                 else
-                    st="$(ip netns exec \"ns${wgi}\" wg show \"${wgi}\" transfer 2>/dev/null | jq -R -s)"
-                    echo "{\"code\": \"0\", \"result\": ${st}, \"timestamp\": \"$(date +%s)\"}"
+                    echo -n "{\"code\": \"0\", \"traffic\": "
+                    ip netns exec "ns${wgi}" wg show "${wgi}" transfer 2>/dev/null | jq -R -s | tr -d '\n'
+                    echo -n ", \"last-seen\": "
+                    ip netns exec "ns${wgi}" wg show "${wgi}" latest-handshakes 2>/dev/null | jq -R -s | tr -d '\n'
+                    echo -n ", \"endpoints\": "
+                    ip netns exec "ns${wgi}" wg show "${wgi}" endpoints 2>/dev/null | sed 's#\(\t[0-9]*\.[0-9]*\.[0-9]*\).*$#\1.0/24#g' | jq -R -s | tr -d '\n'
+                    echo ", \"timestamp\": \"$(date +%s)\"}"
                 fi
         ;;
         "/?wg_add" )
