@@ -10,6 +10,29 @@ while [ -f "${spinlock}" ] ; do
 done
 touch "${spinlock}" 2>/dev/null
 
+function set_unset_bandwidth_limit {
+    ip="`ip netns exec \"ns$1\" wg show \"$1\" allowed-ips | fgrep \"$2\" | cut -d $'\t' -f 2 | sed 's/^[^0-9]*\([0-9]*\.[0-9]*\.[0-9]*\.[0-9]*\).*$/\1/'`"
+
+    ip_byte3=`echo "$ip" | cut -d . -f 3`
+    handle=`printf "%x\n" "$ip_byte3"`
+    ip_byte4=`echo "$ip" | cut -d . -f 4`
+    hash=`printf "%x\n" "$ip_byte4"`
+    classid=`printf "%x\n" $(( 256 * ip_byte3 + ip_byte4 ))`
+
+    if [ ! -z "$3" -a ! -z "$4" ]; then
+        ip netns exec "ns$1" tc class add dev "$1" parent 1: classid 1:"$classid" htb rate "$3"kbit \
+        && ip netns exec "ns$1" tc filter add dev "$1" parent 1:0 protocol ip prio 1 handle 2:"${hash}":"${handle}" u32 \
+            ht 2:"${hash}": match ip dst "$ip"/32 flowid 1:"$classid" \
+        && ip netns exec "ns$1" tc filter add dev "$1" parent ffff:0 protocol ip prio 1 handle 3:"${hash}":"${handle}" u32 \
+            ht 3:"${hash}": match ip src "$ip"/32 police rate "$4"kbit burst 80k drop flowid :"$classid"
+    else
+        ip netns exec "ns$1" tc filter del dev "$1" parent 1:0 protocol ip prio 1 handle 2:"${hash}":"${handle}" u32 ht 2:"${hash}": \
+        && ip netns exec "ns$1" tc class del dev "$1" classid 1:"$classid" \
+        && ip netns exec "ns$1" tc filter del dev "$1" parent ffff:0 protocol ip prio 1 handle 3:"${hash}":"${handle}" u32 ht 3:"${hash}":
+    fi
+
+    return $?
+}
 
 #set -x;
 r=read;
@@ -25,6 +48,54 @@ h="HTTP/1.0";
 o="$h 200 OK";
 $e -e "$o\r\n\r\n";
 case "${t}" in
+        "/?bw_set" | "/?bw_unset")
+                if [ -z "${f[0]}" ]; then
+                    echo "{\"code\": \"129\", \"error\": \"peer public key is not defined\"}"
+                    exit 0
+                else
+                    f[0]=`ud_b64 "${f[0]}"`
+                fi
+                for v in "${f[@]:1}"; do
+                        case "${v}" in
+                                "--wg-public-key="* )
+                                        v=`ud_b64 "${v}"`
+                                        wpk="${v#*=}"
+                                ;;
+                                "--up-kbit="* )
+                                        v=`ud_b64 "${v}"`
+                                        uprate="${v#*=}"
+                                ;;
+                                "--down-kbit="* )
+                                        v=`ud_b64 "${v}"`
+                                        downrate="${v#*=}"
+                                ;;
+                        esac
+                done
+                if [ ! -z "${wpk}" ]; then
+                    for ns in `ip netns list | cut -d \  -f 1`; do
+                        wgi="`ip netns exec \"${ns}\" wg show all public-key | fgrep \"${wpk}\" | cut -d $'\t' -f 1`"
+                        if [ ! -z "${wgi}" ]; then
+                            break
+                        fi
+                    done
+                fi
+                if [ -z "${wgi}" ]; then
+                    echo "{\"code\": \"128\", \"error\": \"no interface found for supplied public key\"}"
+                    exit 0
+                fi
+                if [ "${t}" == "/?bw_set" ]; then
+                    if [ -z "${uprate}" -o `expr ${uprate%[^0-9]*} + 0` -le 0 ]; then
+                        echo "{\"code\": \"144\", \"error\": \"upload rate parameter up-kbit is not set, zero or not a number\"}"
+                        exit 0
+                    fi
+                    if [ -z "${downrate}" -o `expr ${downrate%[^0-9]*} + 0` -le 0 ]; then
+                        echo "{\"code\": \"145\", \"error\": \"download rate parameter down-kbit is not set, zero or not a number\"}"
+                        exit 0
+                    fi
+                fi
+                set_unset_bandwidth_limit "${wgi}" "${f[0]}" "${uprate%[^0-9]*}" "${uprate%[^0-9]*}"
+                echo "{\"code\": \"$?\"}"
+        ;;
         "/?peer_add" | "/?peer_del" | "/?stat" )
                 if [ "${t}" == "/?peer_add" -o "${t}" == "/?peer_del" ]; then
                     if [ -z "${f[0]}" ]; then
@@ -125,6 +196,7 @@ case "${t}" in
                         fi
                         ip link del "${wgi}veth0"
                     fi
+                    set_unset_bandwidth_limit "${wgi}" "${f[0]}"
                     ip netns exec "ns${wgi}" wg set "${wgi}" peer "${f[0]}" remove
                     echo "{\"code\": \"$?\"}"
                 else
