@@ -64,6 +64,13 @@ PostUp = ip6tables -A FORWARD_USER_P2P_TO_VETH_%i -j REJECT --reject-with icmp6-
 PostUp = ip6tables -A FORWARD_USER_P2P_TO_WG_%i -p tcp -m multiport --sports 53,80,443 -j ACCEPT
 PostUp = ip6tables -A FORWARD_USER_P2P_TO_WG_%i -p udp -m multiport --sports 53,443 -j ACCEPT
 PostUp = ip6tables -A FORWARD_USER_P2P_TO_WG_%i -j DROP
+# Ban portscan
+PostUp = ipset create PortScanners%i hash:ip family inet hashsize 32768 maxelem 65536 timeout 600
+PostUp = ipset create ScannedPorts%i hash:ip,port family inet hashsize 32768 maxelem 65536 timeout 60
+PostUp = iptables -I FORWARD 1 -m state --state INVALID -j DROP
+PostUp = iptables -I FORWARD 2 -m state --state NEW -m set ! --match-set ScannedPorts%i src,dst -m hashlimit --hashlimit-above 1/hour --hashlimit-burst 5 --hashlimit-mode srcip --hashlimit-name portscan --hashlimit-htable-expire 10000 -j SET --add-set PortScanners%i src --exist
+PostUp = iptables -I FORWARD 3 -m state --state NEW -m set --match-set PortScanners%i src -j DROP
+PostUp = iptables -I FORWARD 4 -m state --state NEW -j SET --add-set ScannedPorts%i src,dst
 ###
 PreDown = iptables -D FORWARD -i %i -o ${ext_if} -j ACCEPT
 PreDown = iptables -D FORWARD -o %i -i ${ext_if} -j ACCEPT
@@ -108,3 +115,10 @@ PreDown = ipset destroy UserP2Pv6%i
 # Traffic control
 PreDown = tc qdisc del dev %i root
 PreDown = tc qdisc del dev %i handle ffff: ingress
+# Ban portscan
+PreDown = iptables -D FORWARD -m state --state INVALID -j DROP
+PreDown = iptables -D FORWARD -m state --state NEW -m set ! --match-set ScannedPorts%i src,dst -m hashlimit --hashlimit-above 1/hour --hashlimit-burst 5 --hashlimit-mode srcip --hashlimit-name portscan --hashlimit-htable-expire 10000 -j SET --add-set PortScanners%i src --exist
+PreDown = iptables -D FORWARD -m state --state NEW -m set --match-set PortScanners%i src -j DROP
+PreDown = iptables -D FORWARD -m state --state NEW -j SET --add-set ScannedPorts%i src,dst
+PreDown = ipset destroy PortScanners%i
+PreDown = ipset destroy ScannedPorts%i
