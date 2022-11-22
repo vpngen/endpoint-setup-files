@@ -1,6 +1,16 @@
 [Interface]
 ListenPort = 51820
 SaveConfig = true
+### Interface start and setup
+PostUp = ip addr add ${ext_ip_nm} dev ${ext_if}
+PostUp = ip link set dev ${ext_if} up
+PostUp = ip route add default via ${ext_gw} dev ${ext_if}
+PostUp = iptables -P INPUT DROP
+PostUp = iptables -P FORWARD DROP
+PostUp = ip6tables -P INPUT DROP
+PostUp = ip6tables -P FORWARD DROP
+PostUp = iptables -A INPUT -i %i -p icmp -m icmp --icmp-type 8 -j ACCEPT
+PostUp = ip6tables -A INPUT -i %i -p ipv6-icmp -j ACCEPT
 PostUp = iptables -I FORWARD -i %i -o ${ext_if} -j ACCEPT
 PostUp = iptables -I FORWARD -o %i -i ${ext_if} -j ACCEPT
 PostUp = iptables -t nat -I POSTROUTING -o ${ext_if} -j MASQUERADE
@@ -71,7 +81,7 @@ PostUp = iptables -I FORWARD 1 -m state --state INVALID -j DROP
 PostUp = iptables -I FORWARD 2 -m state --state NEW -m set ! --match-set ScannedPorts%i src,dst -m hashlimit --hashlimit-above 1/hour --hashlimit-burst 5 --hashlimit-mode srcip --hashlimit-name portscan --hashlimit-htable-expire 10000 -j SET --add-set PortScanners%i src --exist
 PostUp = iptables -I FORWARD 3 -m state --state NEW -m set --match-set PortScanners%i src -j DROP
 PostUp = iptables -I FORWARD 4 -m state --state NEW -j SET --add-set ScannedPorts%i src,dst
-###
+### Interface release
 PreDown = iptables -D FORWARD -i %i -o ${ext_if} -j ACCEPT
 PreDown = iptables -D FORWARD -o %i -i ${ext_if} -j ACCEPT
 PreDown = iptables -t nat -D POSTROUTING -o ${ext_if} -j MASQUERADE

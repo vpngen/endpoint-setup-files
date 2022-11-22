@@ -13,9 +13,10 @@ Documentation=https://git.zx2c4.com/wireguard-tools/about/src/man/wg.8
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/bin/ip netns exec ns%i /usr/bin/wg-quick up %i
-ExecStop=/usr/bin/ip netns exec ns%i /usr/bin/wg-quick down %i
-ExecReload=/usr/bin/ip netns exec ns%i /bin/bash -c 'exec /usr/bin/wg syncconf %i <(exec /usr/bin/wg-quick strip %i)'
+Environment="ifwg=%i"
+ExecStart=/bin/bash -c "/usr/bin/ip netns add ns${ifwg##*:} && /usr/bin/ip link set dev ${ifwg%%:*} netns ns${ifwg##*:} && /usr/bin/ip netns exec ns${ifwg##*:} /usr/bin/wg-quick up ${ifwg##*:}"
+ExecStop=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /usr/bin/wg-quick down ${ifwg##*:} ; /usr/bin/ip netns del ns${ifwg##*:}"
+ExecReload=/usr/bin/ip netns exec ns${ifwg##*:} /bin/bash -c "exec /usr/bin/wg syncconf ${ifwg##*:} <(exec /usr/bin/wg-quick strip ${ifwg##*:})"
 Environment=WG_ENDPOINT_RESOLUTION_RETRIES=infinity
 
 [Install]

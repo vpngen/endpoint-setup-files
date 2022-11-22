@@ -279,32 +279,22 @@ case "${t}" in
                     exit 0
                 fi
 
-                ip netns add "ns${wgi}"
-                ip link set dev "${ext_if}" netns "ns${wgi}"
-                ip -n "ns${wgi}" addr add "${ext_ip_nm}" dev "${ext_if}"
-                ip -n "ns${wgi}" link set dev "${ext_if}" up
-                ip -n "ns${wgi}" route add default via "${ext_gw}" dev "${ext_if}"
-                ip netns exec "ns${wgi}" iptables -P INPUT DROP
-                ip netns exec "ns${wgi}" iptables -P FORWARD DROP
-                ip netns exec "ns${wgi}" ip6tables -P INPUT DROP
-                ip netns exec "ns${wgi}" ip6tables -P FORWARD DROP
-                ip netns exec "ns${wgi}" iptables -A INPUT -p icmp -m icmp --icmp-type 8 -j ACCEPT
-                ip netns exec "ns${wgi}" ip6tables -A INPUT -p ipv6-icmp -j ACCEPT
-
                 cp -f /etc/wireguard/wg.conf.tpl "/etc/wireguard/${wgi}.conf"
                 chmod 600 "/etc/wireguard/${wgi}.conf"
                 echo "Address = ${addrs}" | sed -e "s/,/\nAddress = /" >> "/etc/wireguard/${wgi}.conf"
                 echo "PrivateKey = ${f[0]}" >> "/etc/wireguard/${wgi}.conf"
                 sed -i "s/\${ext_if}/${ext_if}/g" "/etc/wireguard/${wgi}.conf"
                 sed -i "s/\${ext_ip}/${ext_ip_nm%%/[0-9]*}/g" "/etc/wireguard/${wgi}.conf"
+                sed -i "s#\${ext_ip_nm}#${ext_ip_nm}#g" "/etc/wireguard/${wgi}.conf" # we use hashmarks cause netmask is separated by slash
+                sed -i "s/\${ext_gw}/${ext_gw}/g" "/etc/wireguard/${wgi}.conf"
 
-                ip netns exec "ns${wgi}" wg-quick up "${wgi}"
+                systemctl start wg-quick-ns@"${ext_if}:${wgi}"
 
                 ec=$?
                 if [ $ec -ne 0 ]; then
                     rm -f /etc/wireguard/"${wgi}".conf
                 else
-                    systemctl enable wg-quick-ns@"${wgi}"
+                    systemctl enable wg-quick-ns@"${ext_if}:${wgi}"
                 fi
                 echo "{\"code\": \"${ec}\"}"
         ;;
@@ -331,11 +321,14 @@ case "${t}" in
                 if [ ! -z "${ccv6}" ]; then
                     ip6tables-save | fgrep " ${ccv6}/" | sed "s/^-A /-D /" | sed "s/-D PREROUTING/-t nat -D PREROUTING/" | sed "s/-D POSTROUTING/-t nat -D POSTROUTING/" | xargs -I {} /bin/bash -c "ip6tables {}"
                 fi
-                ip netns exec "ns${wgi}" wg-quick down "${wgi}"
+                ext_if="`ip netns exec \"ns${wgi}\" ip -4 -o a | egrep -v ' wg[0-9]* ' | fgrep ' global ' | cut -d \  -f 2`"
+
+                systemctl status wg-quick-ns@"${ext_if}:${wgi}" >/dev/null
+
                 ec=$?
-                ip netns del "ns${wgi}"
                 if [ ${ec} -eq 0 ]; then
-                    systemctl disable wg-quick-ns@"${wgi}"
+                    systemctl stop wg-quick-ns@"${ext_if}:${wgi}"
+                    systemctl disable wg-quick-ns@"${ext_if}:${wgi}"
                     rm -f /etc/wireguard/"${wgi}".conf
                 fi
                 echo "{\"code\": \"${ec}\"}"
