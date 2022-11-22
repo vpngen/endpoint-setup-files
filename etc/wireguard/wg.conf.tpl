@@ -1,6 +1,6 @@
 [Interface]
 ListenPort = 51820
-SaveConfig = true
+SaveConfig = false
 ### Interface start and setup
 PostUp = ip addr add ${ext_ip_nm} dev ${ext_if}
 PostUp = ip link set dev ${ext_if} up
@@ -11,12 +11,12 @@ PostUp = ip6tables -P INPUT DROP
 PostUp = ip6tables -P FORWARD DROP
 PostUp = iptables -A INPUT -i %i -p icmp -m icmp --icmp-type 8 -j ACCEPT
 PostUp = ip6tables -A INPUT -i %i -p ipv6-icmp -j ACCEPT
-PostUp = iptables -I FORWARD -i %i -o ${ext_if} -j ACCEPT
-PostUp = iptables -I FORWARD -o %i -i ${ext_if} -j ACCEPT
-PostUp = iptables -t nat -I POSTROUTING -o ${ext_if} -j MASQUERADE
-PostUp = ip6tables -I FORWARD -i %i -o ${ext_if} -j ACCEPT
-PostUp = ip6tables -I FORWARD -o %i -i ${ext_if} -j ACCEPT
-PostUp = ip6tables -t nat -I POSTROUTING -o ${ext_if} -j MASQUERADE
+PostUp = iptables -A FORWARD -i %i -o ${ext_if} -j ACCEPT
+PostUp = iptables -A FORWARD -o %i -i ${ext_if} -j ACCEPT
+PostUp = ip6tables -A FORWARD -i %i -o ${ext_if} -j ACCEPT
+PostUp = ip6tables -A FORWARD -o %i -i ${ext_if} -j ACCEPT
+PostUp = iptables -t nat -A POSTROUTING -o ${ext_if} -j MASQUERADE
+PostUp = ip6tables -t nat -A POSTROUTING -o ${ext_if} -j MASQUERADE
 PostUp = iptables -A INPUT -d ${ext_ip} -p udp -m udp --dport 51820 -j ACCEPT
 PostUp = iptables -t nat -A PREROUTING -i %i -p udp --dport 53 -j DNAT --to 1.1.1.1
 PostUp = iptables -t nat -A PREROUTING -i %i -p tcp --dport 53 -j DNAT --to 1.1.1.1
@@ -84,9 +84,9 @@ PostUp = iptables -I FORWARD 4 -m state --state NEW -j SET --add-set ScannedPort
 ### Interface release
 PreDown = iptables -D FORWARD -i %i -o ${ext_if} -j ACCEPT
 PreDown = iptables -D FORWARD -o %i -i ${ext_if} -j ACCEPT
-PreDown = iptables -t nat -D POSTROUTING -o ${ext_if} -j MASQUERADE
 PreDown = ip6tables -D FORWARD -i %i -o ${ext_if} -j ACCEPT
 PreDown = ip6tables -D FORWARD -o %i -i ${ext_if} -j ACCEPT
+PreDown = iptables -t nat -D POSTROUTING -o ${ext_if} -j MASQUERADE
 PreDown = ip6tables -t nat -D POSTROUTING -o ${ext_if} -j MASQUERADE
 PreDown = iptables -D INPUT -d ${ext_ip} -p udp -m udp --dport 51820 -j ACCEPT
 PreDown = iptables -t nat -D PREROUTING -i %i -p udp --dport 53 -j DNAT --to 1.1.1.1

@@ -34,6 +34,25 @@ function set_unset_bandwidth_limit {
     return $?
 }
 
+if [ "$1" == "replay" ]; then
+    replay="true"
+fi
+
+function replay_log {
+    [ ! -z "${replay}" ] && return 0
+    case "$1" in
+        "/?bw_set" | "/?peer_add" | "/?wg_block")
+            echo "$4" >> "/etc/wireguard/${3}.replay"
+        ;;
+        "/?bw_unset" | "/?peer_del" | "/?wg_unblock")
+            declare -A cm=( [bw_unset]=bw_set [peer_del]=peer_add [wg_unblock]=wg_block )
+            ml="`fgrep \"/?${cm[${1##/\?}]}=$2\" \"/etc/wireguard/${3}.replay\"`" # third parameter is empty for wg_unblock
+            fgrep -v "${ml}" "/etc/wireguard/${3}.replay" > "/etc/wireguard/${3}.replay.tmp"
+            mv -f "/etc/wireguard/${3}.replay.tmp" "/etc/wireguard/${3}.replay"
+        ;;
+    esac
+}
+
 #set -x;
 r=read;
 e=echo;
@@ -46,7 +65,7 @@ f=(`$e $b|sed 's/^[^=]*=//i'| sed 's/&/\n--/g'`);
 t=(`$e $b|sed 's/=.*//'`);
 h="HTTP/1.0";
 o="$h 200 OK";
-$e -e "$o\r\n\r\n";
+$e -e "$o\r\n\r";
 case "${t}" in
         "/?bw_set" | "/?bw_unset")
                 if [ -z "${f[0]}" ]; then
@@ -94,6 +113,7 @@ case "${t}" in
                     fi
                 fi
                 set_unset_bandwidth_limit "${wgi}" "${f[0]}" "${uprate%[^0-9]*}" "${uprate%[^0-9]*}"
+                [ $? -eq 0 ] && replay_log "${t}" "${f[0]}" "${wgi}" "${b}"
                 echo "{\"code\": \"$?\"}"
         ;;
         "/?peer_add" | "/?peer_del" | "/?stat" )
@@ -185,6 +205,7 @@ case "${t}" in
                             ip6tables -A FORWARD -d "${cv6%:[0-9a-f]*}:`printf \"%x\" \"$cv6ld\"`" -s ${chv6} -p tcp -j ACCEPT
                         fi
                     fi
+                    [ ${ec} -eq 0 ] && replay_log "${t}" "${f[0]}" "${wgi}" "${b}"
                     echo "{\"code\": \"${ec}\"}"
                 elif [ "${t}" == "/?peer_del" ]; then
                     av6="`ip netns exec \"ns${wgi}\" wg show ${wgi} allowed-ips | fgrep \"${f[0]}\" | cut -d $'\t' -f 2 | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
@@ -198,6 +219,7 @@ case "${t}" in
                     fi
                     set_unset_bandwidth_limit "${wgi}" "${f[0]}"
                     ip netns exec "ns${wgi}" wg set "${wgi}" peer "${f[0]}" remove
+                    [ $? -eq 0 ] && replay_log "${t}" "${f[0]}" "${wgi}" "${b}"
                     echo "{\"code\": \"$?\"}"
                 else
                     echo -n "{\"code\": \"0\", \"traffic\": "
@@ -291,9 +313,7 @@ case "${t}" in
                 systemctl start wg-quick-ns@"${ext_if}:${wgi}"
 
                 ec=$?
-                if [ $ec -ne 0 ]; then
-                    rm -f /etc/wireguard/"${wgi}".conf
-                else
+                if [ $ec -eq 0 ]; then
                     systemctl enable wg-quick-ns@"${ext_if}:${wgi}"
                 fi
                 echo "{\"code\": \"${ec}\"}"
@@ -329,7 +349,7 @@ case "${t}" in
                 if [ ${ec} -eq 0 ]; then
                     systemctl stop wg-quick-ns@"${ext_if}:${wgi}"
                     systemctl disable wg-quick-ns@"${ext_if}:${wgi}"
-                    rm -f /etc/wireguard/"${wgi}".conf
+                    rm -f /etc/wireguard/"${wgi}".{conf,replay} 2>/dev/null
                 fi
                 echo "{\"code\": \"${ec}\"}"
         ;;
@@ -366,6 +386,7 @@ case "${t}" in
                         done
                     fi
                 fi
+                replay_log "${t}" "${f[0]}" "${wgi}" "${b}"
                 echo "{\"code\": \"0\"}"
         ;;
         * )
