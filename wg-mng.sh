@@ -19,16 +19,16 @@ function set_unset_bandwidth_limit {
     hash=`printf "%x\n" "$ip_byte4"`
     classid=`printf "%x\n" $(( 256 * ip_byte3 + ip_byte4 ))`
 
+    ip netns exec "ns$1" tc filter del dev "$1" parent 1:0 protocol ip prio 1 handle 2:"${hash}":"${handle}" u32 ht 2:"${hash}":
+    ip netns exec "ns$1" tc class del dev "$1" classid 1:"$classid"
+    ip netns exec "ns$1" tc filter del dev "$1" parent ffff:0 protocol ip prio 1 handle 3:"${hash}":"${handle}" u32 ht 3:"${hash}":
+
     if [ ! -z "$3" -a ! -z "$4" ]; then
         ip netns exec "ns$1" tc class add dev "$1" parent 1: classid 1:"$classid" htb rate "$3"kbit \
         && ip netns exec "ns$1" tc filter add dev "$1" parent 1:0 protocol ip prio 1 handle 2:"${hash}":"${handle}" u32 \
             ht 2:"${hash}": match ip dst "$ip"/32 flowid 1:"$classid" \
         && ip netns exec "ns$1" tc filter add dev "$1" parent ffff:0 protocol ip prio 1 handle 3:"${hash}":"${handle}" u32 \
             ht 3:"${hash}": match ip src "$ip"/32 police rate "$4"kbit burst 80k drop flowid :"$classid"
-    else
-        ip netns exec "ns$1" tc filter del dev "$1" parent 1:0 protocol ip prio 1 handle 2:"${hash}":"${handle}" u32 ht 2:"${hash}": \
-        && ip netns exec "ns$1" tc class del dev "$1" classid 1:"$classid" \
-        && ip netns exec "ns$1" tc filter del dev "$1" parent ffff:0 protocol ip prio 1 handle 3:"${hash}":"${handle}" u32 ht 3:"${hash}":
     fi
 
     return $?
@@ -111,8 +111,11 @@ case "${t}" in
                         echo "{\"code\": \"145\", \"error\": \"download rate parameter down-kbit is not set, zero or not a number\"}"
                         exit 0
                     fi
+                else
+                    uprate="10240"
+                    downrate="10240"
                 fi
-                set_unset_bandwidth_limit "${wgi}" "${f[0]}" "${uprate%[^0-9]*}" "${uprate%[^0-9]*}"
+                set_unset_bandwidth_limit "${wgi}" "${f[0]}" "${downrate%[^0-9]*}" "${uprate%[^0-9]*}"
                 [ $? -eq 0 ] && replay_log "${t}" "${f[0]}" "${wgi}" "${b}"
                 echo "{\"code\": \"$?\"}"
         ;;
@@ -205,6 +208,7 @@ case "${t}" in
                             ip6tables -A FORWARD -d "${cv6%:[0-9a-f]*}:`printf \"%x\" \"$cv6ld\"`" -s ${chv6} -p tcp -j ACCEPT
                         fi
                     fi
+                    set_unset_bandwidth_limit "${wgi}" "${f[0]}" "10240" "10240"
                     [ ${ec} -eq 0 ] && replay_log "${t}" "${f[0]}" "${wgi}" "${b}"
                     echo "{\"code\": \"${ec}\"}"
                 elif [ "${t}" == "/?peer_del" ]; then
