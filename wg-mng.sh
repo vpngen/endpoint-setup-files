@@ -313,6 +313,8 @@ case "${t}" in
                 sed -i "s/\${ext_ip}/${ext_ip_nm%%/[0-9]*}/g" "/etc/wireguard/${wgi}.conf"
                 sed -i "s#\${ext_ip_nm}#${ext_ip_nm}#g" "/etc/wireguard/${wgi}.conf" # we use hashmarks cause netmask is separated by slash
                 sed -i "s/\${ext_gw}/${ext_gw}/g" "/etc/wireguard/${wgi}.conf"
+                int_ip_nm="`echo ${addrs} | egrep -o '[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*/[0-9]*'`"
+                sed -i "s#\${int_ip_nm}#${int_ip_nm}#g" "/etc/wireguard/${wgi}.conf" # we use hashmarks cause netmask is separated by slash
 
                 systemctl start wg-quick-ns@"${ext_if}:${wgi}"
 

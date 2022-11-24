@@ -31,10 +31,10 @@ PostUp = tc qdisc add dev %i root handle 1: htb
 PostUp = tc qdisc add dev %i handle ffff: ingress
 PostUp = tc filter add dev %i parent 1:0 prio 1 protocol ip u32
 PostUp = tc filter add dev %i parent 1:0 prio 1 handle 2: protocol ip u32 divisor 256
-PostUp = tc filter add dev %i parent 1:0 prio 1 protocol ip u32 ht 800:: match ip dst 172.16.0.0/16 hashkey mask 0x000000ff at 16 link 2:
+PostUp = tc filter add dev %i parent 1:0 prio 1 protocol ip u32 ht 800:: match ip dst ${int_ip_nm} hashkey mask 0x000000ff at 16 link 2:
 PostUp = tc filter add dev %i parent ffff:0 prio 1 protocol ip u32
 PostUp = tc filter add dev %i parent ffff:0 prio 1 handle 3: protocol ip u32 divisor 256
-PostUp = tc filter add dev %i parent ffff:0 prio 1 protocol ip u32 ht 800:: match ip src 172.16.0.0/16 hashkey mask 0x000000ff at 12 link 3:
+PostUp = tc filter add dev %i parent ffff:0 prio 1 protocol ip u32 ht 800:: match ip src ${int_ip_nm} hashkey mask 0x000000ff at 12 link 3:
 # Torrent blocking
 PostUp = ipset create UserP2Pv4%i hash:ip family inet timeout 86400
 PostUp = ipset create UserP2Pv6%i hash:ip family inet6 timeout 86400
