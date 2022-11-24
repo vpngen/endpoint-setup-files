@@ -19,9 +19,9 @@ function set_unset_bandwidth_limit {
     hash=`printf "%x\n" "$ip_byte4"`
     classid=`printf "%x\n" $(( 256 * ip_byte3 + ip_byte4 ))`
 
-    ip netns exec "ns$1" tc filter del dev "$1" parent 1:0 protocol ip prio 1 handle 2:"${hash}":"${handle}" u32 ht 2:"${hash}":
-    ip netns exec "ns$1" tc class del dev "$1" classid 1:"$classid"
-    ip netns exec "ns$1" tc filter del dev "$1" parent ffff:0 protocol ip prio 1 handle 3:"${hash}":"${handle}" u32 ht 3:"${hash}":
+    ip netns exec "ns$1" tc filter del dev "$1" parent 1:0 protocol ip prio 1 handle 2:"${hash}":"${handle}" u32 ht 2:"${hash}": 2>/dev/null
+    ip netns exec "ns$1" tc class del dev "$1" classid 1:"$classid" 2>/dev/null
+    ip netns exec "ns$1" tc filter del dev "$1" parent ffff:0 protocol ip prio 1 handle 3:"${hash}":"${handle}" u32 ht 3:"${hash}": 2>/dev/null
 
     if [ ! -z "$3" -a ! -z "$4" ]; then
         ip netns exec "ns$1" tc class add dev "$1" parent 1: classid 1:"$classid" htb rate "$3"kbit \
