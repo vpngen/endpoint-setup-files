@@ -190,13 +190,13 @@ case "${t}" in
                             fi
 
                             ip link add "${wgi}veth0" type veth peer name "${wgi}veth1"
-                            ip addr add "${cv6}/112" dev "${wgi}veth0"
+                            ip addr add "${cv6}/128" dev "${wgi}veth0"
                             ip link set "${wgi}veth0" up
                             ip link set "${wgi}veth1" netns "ns${wgi}"
-                            ip -n "ns${wgi}" addr add "${cv6%:[0-9a-f]*}:`printf \"%x\" \"$cv6ld\"`/112" dev "${wgi}veth1"
+                            ip -n "ns${wgi}" addr add "${cv6%:[0-9a-f]*}:`printf \"%x\" \"$cv6ld\"`/128" dev "${wgi}veth1"
                             ip -n "ns${wgi}" link set "${wgi}veth1" up
-                            ip route add "${cv6%:[0-9a-f]*}:`printf \"%x\" \"$cv6ld\"`/112" dev "${wgi}veth0"
-                            ip -n "ns${wgi}" route add "${cv6}/112" dev "${wgi}veth1"
+                            ip route add "${cv6%:[0-9a-f]*}:`printf \"%x\" \"$cv6ld\"`/128" dev "${wgi}veth0"
+                            ip -n "ns${wgi}" route add "${cv6}/128" dev "${wgi}veth1"
 
                             ip netns exec "ns${wgi}" sysctl -q net.ipv6.conf.all.forwarding=1
                             ip netns exec "ns${wgi}" ip6tables -t nat -A POSTROUTING -s "${av6}" -d "${cv6}" -p tcp --dport 80 -j MASQUERADE
