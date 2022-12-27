@@ -206,6 +206,9 @@ case "${t}" in
                             ip6tables -t nat -A POSTROUTING -s "${cv6%:[0-9a-f]*}:`printf \"%x\" \"$cv6ld\"`" -d ${chv6} -p tcp -m tcp -j MASQUERADE
                             ip6tables -A FORWARD -s "${cv6%:[0-9a-f]*}:`printf \"%x\" \"$cv6ld\"`" -d ${chv6} -p tcp -m tcp --dport 80 -j ACCEPT
                             ip6tables -A FORWARD -d "${cv6%:[0-9a-f]*}:`printf \"%x\" \"$cv6ld\"`" -s ${chv6} -p tcp -j ACCEPT
+
+                            echo "${cv6} vpn.ws vpn.my vpn.loc vpn.local vpn vpn.vpn vpn.gen" > /etc/dnsmasq.hosts."${wgi}"
+                            /usr/bin/systemctl reload dnsmasq-ns@"${wgi}"
                         fi
                     fi
                     set_unset_bandwidth_limit "${wgi}" "${f[0]}" "10240" "10240"
@@ -214,6 +217,9 @@ case "${t}" in
                 elif [ "${t}" == "/?peer_del" ]; then
                     av6="`ip netns exec \"ns${wgi}\" wg show ${wgi} allowed-ips | fgrep \"${f[0]}\" | cut -d $'\t' -f 2 | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
                     if [ ! -z "${av6}" -a ! -z "`ip netns exec \"ns${wgi}\" ip6tables-save | fgrep \" ${av6}/\"`" ]; then
+                        echo > /etc/dnsmasq.hosts."${wgi}"
+                        /usr/bin/systemctl reload dnsmasq-ns@"${wgi}"
+
                         ip netns exec "ns${wgi}" ip6tables-save | fgrep " ${av6}/" | sed "s/^-A /-D /" | sed "s/-D POSTROUTING/-t nat -D POSTROUTING/" | xargs -I {} /bin/bash -c "ip netns exec \"ns${wgi}\" ip6tables {}"
                         c2v6="`ip netns exec \"ns${wgi}\" ip -6 -o a | egrep ' wg[0-9]*veth1 ' | fgrep ' global ' | cut -d \  -f 7 | cut -d \/ -f 1`"
                         if [ ! -z "${c2v6}" ]; then
@@ -316,6 +322,8 @@ case "${t}" in
                 int_ip_nm="`echo ${addrs} | egrep -o '[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*/[0-9]*'`"
                 sed -i "s#\${int_ip_nm}#${int_ip_nm}#g" "/etc/wireguard/${wgi}.conf" # we use hashmarks cause netmask is separated by slash
 
+                echo > /etc/dnsmasq.hosts."${wgi}"
+
                 systemctl start wg-quick-ns@"${ext_if}:${wgi}"
 
                 ec=$?
@@ -356,6 +364,7 @@ case "${t}" in
                     systemctl stop wg-quick-ns@"${ext_if}:${wgi}"
                     systemctl disable wg-quick-ns@"${ext_if}:${wgi}"
                     rm -f /etc/wireguard/"${wgi}".{conf,replay} 2>/dev/null
+                    rm -f /etc/dnsmasq.hosts."${wgi}" 2>/dev/null
                 fi
                 echo "{\"code\": \"${ec}\"}"
         ;;

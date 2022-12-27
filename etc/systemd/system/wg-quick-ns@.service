@@ -15,8 +15,12 @@ Type=oneshot
 RemainAfterExit=yes
 Environment="ifwg=%i"
 ExecStartPre=/bin/bash -c "test -f /etc/wireguard/${ifwg##*:}.conf"
-ExecStart=/bin/bash -c "/usr/bin/ip netns add ns${ifwg##*:} && /usr/bin/ip link set dev ${ifwg%%:*} netns ns${ifwg##*:} && /usr/bin/ip netns exec ns${ifwg##*:} /usr/bin/wg-quick up ${ifwg##*:} && touch /etc/wireguard/${ifwg##*:}.replay && cat /etc/wireguard/${ifwg##*:}.replay | xargs -I {} /bin/bash -c 'echo -ne \"GET {} HTTP/1.0\r\n\r\n\" | /wg-mng.sh replay'"
-ExecStop=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /usr/bin/wg-quick down ${ifwg##*:} ; /usr/bin/ip netns del ns${ifwg##*:}"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns add ns${ifwg##*:} && /usr/bin/ip link set dev ${ifwg%%:*} netns ns${ifwg##*:} && /usr/bin/ip netns exec ns${ifwg##*:} /usr/bin/ip link set dev lo up"
+ExecStartPre=/bin/bash -c "/usr/bin/systemctl start dnsmasq-ns@${ifwg##*:}"
+ExecStart=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /usr/bin/wg-quick up ${ifwg##*:} && touch /etc/wireguard/${ifwg##*:}.replay && cat /etc/wireguard/${ifwg##*:}.replay | xargs -I {} /bin/bash -c 'echo -ne \"GET {} HTTP/1.0\r\n\r\n\" | /wg-mng.sh replay'"
+ExecStop=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /usr/bin/wg-quick down ${ifwg##*:}"
+ExecStopPost=/bin/bash -c "/usr/bin/systemctl stop dnsmasq-ns@${ifwg##*:}"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns del ns${ifwg##*:}"
 #ExecReload=/usr/bin/ip netns exec ns${ifwg##*:} /bin/bash -c "exec /usr/bin/wg syncconf ${ifwg##*:} <(exec /usr/bin/wg-quick strip ${ifwg##*:})"
 Environment=WG_ENDPOINT_RESOLUTION_RETRIES=infinity
 
