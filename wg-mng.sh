@@ -365,6 +365,10 @@ case "${t}" in
                     systemctl disable wg-quick-ns@"${ext_if}:${wgi}"
                     rm -f /etc/wireguard/"${wgi}".{conf,replay} 2>/dev/null
                     rm -f /etc/dnsmasq.hosts."${wgi}" 2>/dev/null
+
+                    while [ -z "`ip -4 -o a | fgrep \" ${ext_if} \"`" ]; do
+                        sleep 0.1
+                    done
                 fi
                 echo "{\"code\": \"${ec}\"}"
         ;;
