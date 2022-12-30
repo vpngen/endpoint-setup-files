@@ -366,8 +366,14 @@ case "${t}" in
                     rm -f /etc/wireguard/"${wgi}".{conf,replay} 2>/dev/null
                     rm -f /etc/dnsmasq.hosts."${wgi}" 2>/dev/null
 
+                    i=0
                     while [ -z "`ip -4 -o a | fgrep \" ${ext_if} \"`" ]; do
                         sleep 0.1
+                        if [ $i -ge 100 ]; then
+                            echo "{\"code\": \"146\", \"error\": \"interface did not come back to system namespace\"}"
+                            exit 0
+                        fi
+                        i=$((i+1))
                     done
                 fi
                 echo "{\"code\": \"${ec}\"}"
