@@ -120,13 +120,13 @@ case "${t}" in
                 echo "{\"code\": \"$?\"}"
         ;;
         "/?peer_add" | "/?peer_del" | "/?stat" )
+                if [ -z "${f[0]}" ]; then
+                    echo "{\"code\": \"129\", \"error\": \"peer public key is not defined\"}"
+                    exit 0
+                else
+                    f[0]=`ud_b64 "${f[0]}"`
+                fi
                 if [ "${t}" == "/?peer_add" -o "${t}" == "/?peer_del" ]; then
-                    if [ -z "${f[0]}" ]; then
-                        echo "{\"code\": \"129\", \"error\": \"peer public key is not defined\"}"
-                        exit 0
-                    else
-                        f[0]=`ud_b64 "${f[0]}"`
-                    fi
                     for v in "${f[@]:1}"; do
                             case "${v}" in
                                     "--wg-public-key="* )
