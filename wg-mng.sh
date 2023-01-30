@@ -208,6 +208,7 @@ case "${t}" in
                             ip6tables -A FORWARD -d "${cv6%:[0-9a-f]*}:`printf \"%x\" \"$cv6ld\"`" -s ${chv6} -p tcp -j ACCEPT
 
                             echo "${cv6} vpn.works vpn.my vpn.loc vpn.local vpn vpn.vpn vpn.gen" > /etc/dnsmasq.hosts."${wgi}"
+                            echo "0.0.0.0 vpn.works vpn.my vpn.loc vpn.local vpn vpn.vpn vpn.gen" >> /etc/dnsmasq.hosts."${wgi}"
                             /usr/bin/systemctl reload dnsmasq-ns@"${wgi}"
                         fi
                     fi
