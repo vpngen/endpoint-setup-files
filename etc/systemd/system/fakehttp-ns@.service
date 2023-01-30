@@ -1,0 +1,23 @@
+[Unit]
+Description=FakeHTTPs for namespaced interface %I
+Requires=network.target
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+
+Environment=FAKEPAGE=KLUv/QRY7Q8AduRsJ/ByrAOUl4DMNLKcBXpB3GbXqzxqKgY4VlKf8VDCfxjFKbKJ8DBVAWoAYABeAAxBFhbBNFieCyZyZ4LPhXFHlHBSMW/coTU2xDTiKMWoSkz6wgg2UDG4Q/VEOULOplp/cN/h6nomTblpVWCYy2NZwNzhhgtMwGpqZS4CTmkOKk2lfdA40TuWOyxbMIiJUygDrzSVRvE8DgGXSBit5RJIYWQZ4xI4KwWfO5eME0qTplWqbcFT7tA4WTgRJhcQ3KE6ih7/D/Irqpn/Z4/l1dex5gBqn2eFJGc8lh3bsRdBduzJ2dQvFBqPwsQCgGPscl+ZO5cnCismXQWvcoy9qrkmYhstDra/8bTGhtaaokQrdMtUW4vhzUTjhq0eLKLwEUsJ+9L4S0pLupchyLq/8fcZ9jhTfQlPsPqNVJ/53qrXpYdXOfYqVIVy7F1RzTTXHAuRouU7uRTe7MnZVGvuTW6umWi81m2VNiiknjfZzQrNCjU8ywyUEXbA3yhhhCzPWRXYazbjmgebe5E22dq05lTdVCRBYksdOlb7liW25wtZVm9bq8q6jyhsytOCanSmUdJ6WxkCGgCJK/HTVnIWj9C285kHAB6gGKDWVtD3pTa1iFvMqBOJ9xaEbXg4o4dmDg+MI+cKlzu3grNWlxt4hkN9QygqIlYEPqQtZhRlsYYi
+Environment="ifwg=%i"
+
+ExecStartPre=/bin/bash -c 'shuf -i 0-1 -n 1 > /tmp/fakehttps-%i-random-seed'
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -A INPUT -i ${ifwg%%:*} -p tcp --dport 80 -j ACCEPT || true"
+
+ExecStart=/bin/bash -c "while true; do if [[ `cat /tmp/fakehttps-%i-random-seed` == "0" ]]; then echo -n ; else echo $FAKEPAGE | base64 -d | unzstd | sed \"s/_ETAG_/`openssl rand -hex 4`/g\" | sed \"s/_DATE_/`date -u '+%%a, %%d %%b %%Y %%H:%%M:%%S GMT'`/g\" ; fi | /usr/bin/ip netns exec ns${ifwg##*:} nc -q 1 -nl -s `/usr/bin/ip netns exec ns${ifwg##*:} /usr/bin/ip -4 -o a | fgrep ${ifwg%%:*} | cut -d \  -f 7 | cut -d \/ -f 1` -p 80 ; done"
+
+ExecStopPost=rm -f /tmp/fakehttps-%i-random-seed
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -D INPUT -i ${ifwg%%:*} -p tcp --dport 80 -j ACCEPT || true"
+
+[Install]
+WantedBy=multi-user.target

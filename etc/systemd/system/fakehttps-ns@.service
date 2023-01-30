@@ -1,0 +1,27 @@
+[Unit]
+Description=FakeHTTPs for namespaced interface %I
+Requires=network.target
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+
+Environment=FAKEPAGE=KLUv/QRYzQ8AJuRrJ/ByrAOUl4DMNLKcBXpB3GbXqzxqKgY4VlKf8VDCfxjFKbKJ8DBVAWkAXwBeABWTrhiCLCyCabA8F0zkzgSfC+NbJXSH1tgQ04ijFKMqMekLI9hAxeAO1RPlCDmbav3BfYer65k05aZVgWEuj2UBc4cbLjABq6mVuQg4pTmoNJX2QeNE71jusGzBICZOoQy80lQaxfM4BBTeSySM1nIJpDCyjHEJnJWCz51LxgmlSdMq1bbgKXdonCycCJMLCO5QHUWP/wf5FdXM/7PH8urrWHMAtc+zQpIzHsuO7diLIDv25GzqFwqNR2FiAcAxdrmvzJ3LE4UBleFVjrFXNddEbKPFwfY3ntbY0FpTlGiFbplqazG8mWjcsNWDRRQ+YilhXxp/SWlJ9zIEWfc3/j7DHmeqL+EJVr+R6jPfW/W69PAqx16FqlCOvSuqmeaaYyFStHwnN+zJ2VRr7k1urplovNZtlTYopJ432c0KzQo1PMsMlBF2wN8oYYQsz1kV2Gs245oHm3uRNtnatOZU3VQkQWJLHTpW+5YltucLWVZvW6vKuo8obMrTgmp0plHSehsaAIkr8dNWchaP0LbzmQcAHqAYoNZW0PelNquIW8yoE3/3FoRteDijh2YOD4wj5wqXO7eCs1aXG3iG83xDFCoiVgQ+pC1mFPVBjhk=
+Environment="ifwg=%i"
+
+ExecStartPre=mkdir -p /tmp/fakehttps-%i
+ExecStartPre=openssl req -nodes -x509 -newkey rsa:2048 -keyout /tmp/fakehttps-%i/ca.key -out /tmp/fakehttps-%i/ca.crt -subj "/C=UK/ST=London/L=London/O=webserver/OU=authority/CN=localhost/emailAddress=admin@localhost"
+ExecStartPre=openssl req -nodes -newkey rsa:2048 -keyout /tmp/fakehttps-%i/server.key -out /tmp/fakehttps-%i/server.csr -subj "/C=NO/ST=Oslo/L=Oslo/O=webserver/OU=server/CN=localhost/emailAddress=admin@localhost"
+ExecStartPre=openssl req -nodes -x509 -in /tmp/fakehttps-%i/server.csr -CA /tmp/fakehttps-%i/ca.crt -CAkey /tmp/fakehttps-%i/ca.key -out /tmp/fakehttps-%i/server.crt -days 3650 -copy_extensions none
+ExecStartPre=/bin/bash -c 'shuf -i 0-1 -n 1 > /tmp/fakehttps-%i/random-seed'
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -A INPUT -i ${ifwg%%:*} -p tcp --dport 443 -j ACCEPT || true"
+
+ExecStart=/bin/bash -c "while [ -d /tmp/fakehttps-%i ]; do if [[ `cat /tmp/fakehttps-%i/random-seed` == "0" ]]; then echo | /usr/bin/ip netns exec ns${ifwg##*:} nc -q 1 -nl -s `/usr/bin/ip netns exec ns${ifwg##*:} /usr/bin/ip -4 -o a | fgrep ${ifwg%%:*} | cut -d \  -f 7 | cut -d \/ -f 1` -p 443 ; else echo $FAKEPAGE | base64 -d | unzstd | sed \"s/_ETAG_/`openssl rand -hex 4`/g\" | sed \"s/_DATE_/`date -u '+%%a, %%d %%b %%Y %%H:%%M:%%S GMT'`/g\" | /usr/bin/ip netns exec ns${ifwg##*:} openssl s_server -tls1_2 -no_ticket -no_dhe -key /tmp/fakehttps-%i/server.key -cert /tmp/fakehttps-%i/server.crt -accept `/usr/bin/ip netns exec ns${ifwg##*:} /usr/bin/ip -4 -o a | fgrep ${ifwg%%:*} | cut -d \  -f 7 | cut -d \/ -f 1`:443 -naccept 1 -alpn \"http/1.1\" ; fi ; done"
+
+ExecStopPost=rm -rf /tmp/fakehttps-%i
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -D INPUT -i ${ifwg%%:*} -p tcp --dport 443 -j ACCEPT || true"
+
+[Install]
+WantedBy=multi-user.target
