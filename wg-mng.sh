@@ -3,6 +3,24 @@
 # no need to decode "+" symbol, %XX only and filter to base64 plus additionals from second parameter
 function ud_b64() { echo -e "${1//%/\\x}" | sed "s/[^[:alnum:]\+\/=$2]//g"; }
 
+function nacl_d() {
+    nacl_d_ret=$1
+    if [ ${#nacl_d_ret} -eq 44 ]; then
+        return 0
+    fi
+    nacl pubkey < /vg-endpoint.json >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        echo "{\"code\": \"147\", \"error\": \"Nacl command not found or Endpoint private key is invalid\"}"
+        exit 0
+    fi
+    nacl_d_ret=`echo -n "${nacl_d_ret}" | base64 -d | nacl unseal /vg-endpoint.json | base64`
+    if [ $? -ne 0 -o ${#nacl_d_ret} -ne 44 ]; then
+        echo "{\"code\": \"$2\", \"error\": \"$3\"}"
+        exit 0
+    fi
+    return 0
+}
+
 spinlock="`[ ! -z \"${TMPDIR}\" ] && echo -n \"${TMPDIR}/\" || echo -n \"/tmp/\" ; basename \"${0}.spinlock\"`"
 trap "rm -f \"${spinlock}\" 2>/dev/null" EXIT
 while [ -f "${spinlock}" ] ; do
@@ -136,6 +154,8 @@ case "${t}" in
                                     "--wg-psk-key="* )
                                             v=`ud_b64 "${v}"`
                                             wpsk="${v#*=}"
+                                            nacl_d "${wpsk}" "149" "Wireguard preshared key cannot be decrypted"
+                                            wpsk="${nacl_d_ret}"
                                     ;;
                                     "--allowed-ips="* )
                                             v=`ud_b64 "${v}" ",\.:"`
@@ -252,6 +272,8 @@ case "${t}" in
                     exit 0
                 else
                     f[0]=`ud_b64 "${f[0]}"`
+                    nacl_d "${f[0]}" "148" "Wireguard interface private key cannot be decrypted"
+                    f[0]="${nacl_d_ret}"
                 fi
                 if [ ! -z "`fgrep -s \"${f[0]}\" /etc/wireguard/wg[0-9]*.conf`" ]; then
                     echo "{\"code\": \"135\", \"error\": \"Wireguard interface private key is duplicated\"}"
@@ -343,6 +365,8 @@ case "${t}" in
                     exit 0
                 else
                     f[0]=`ud_b64 "${f[0]}"`
+                    nacl_d "${f[0]}" "148" "Wireguard interface private key cannot be decrypted"
+                    f[0]="${nacl_d_ret}"
                 fi
                 if [ ! -z "${f[0]}" ]; then
                     for ns in `ip netns list | cut -d \  -f 1`; do
