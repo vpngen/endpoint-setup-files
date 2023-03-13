@@ -1,0 +1,46 @@
+[Unit]
+Description=Internet Key Exchange (IKE) Protocol Daemon for IPsec
+Wants=network-online.target
+After=network-online.target
+Documentation=man:ipsec(8) man:pluto(8) man:ipsec.conf(5)
+
+[Service]
+Type=notify
+Restart=on-failure
+#RestartPreventExitStatus=137 143 SIGTERM SIGKILL
+
+# Set WatchdogSec to the amount of time (in seconds) that systemd will wait
+# before restarting an unresponsive pluto.
+# EVENT_SD_WATCHDOG updates the heartbeat every 15 seconds, recommended values
+# are 60, 90, 120. WatchdogSec=0 disables the action
+NotifyAccess=all
+WatchdogSec=200
+
+Environment="ifwg=%i"
+
+# Check configuration file
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /usr/libexec/ipsec/addconn --config /etc/ipsec.conf.${ifwg##*:} --checkconfig"
+# Check for kernel modules
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /usr/libexec/ipsec/_stackmanager start"
+# Check for nss database status and migration
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /usr/sbin/ipsec --checknss"
+# Check for nflog setup
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /usr/sbin/ipsec --checknflog"
+# UDP firewall pass
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -A INPUT -i ${ifwg%%:*} -p udp --dport 500 -j ACCEPT || true"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -A INPUT -i ${ifwg%%:*} -p udp --dport 4500 -j ACCEPT || true"
+# Start the actual IKE daemon
+ExecStart=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /usr/libexec/ipsec/pluto --leak-detective --config /etc/ipsec.conf.${ifwg##*:} --secretsfile /etc/ipsec.secrets.${ifwg##*:} --nofork"
+# Enable for portexcludes support
+# ExecStartPost=/usr/libexec/ipsec/portexcludes
+ExecStop=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /usr/libexec/ipsec/whack --shutdown"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /sbin/ip xfrm policy flush"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /sbin/ip xfrm state flush"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /usr/sbin/ipsec --stopnflog"
+# UDP firewall drop
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -D INPUT -i ${ifwg%%:*} -p udp --dport 500 -j ACCEPT || true"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -D INPUT -i ${ifwg%%:*} -p udp --dport 4500 -j ACCEPT || true"
+ExecReload=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /usr/libexec/ipsec/whack --listen"
+
+[Install]
+WantedBy=multi-user.target
