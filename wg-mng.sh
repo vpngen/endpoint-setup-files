@@ -13,8 +13,8 @@ function nacl_d() {
         echo "{\"code\": \"147\", \"error\": \"Nacl command not found or Endpoint private key is invalid\"}"
         exit 0
     fi
-    nacl_d_ret=`echo -n "${nacl_d_ret}" | base64 -d | nacl unseal /vg-endpoint.json | base64`
-    if [ $? -ne 0 -o ${#nacl_d_ret} -ne 44 ]; then
+    nacl_d_ret=`echo -n "${nacl_d_ret}" | nacl -b unseal /vg-endpoint.json`
+    if [ $? -ne 0 ]; then
         echo "{\"code\": \"$2\", \"error\": \"$3\"}"
         exit 0
     fi
@@ -165,6 +165,16 @@ case "${t}" in
                                             v=`ud_b64 "${v}" ":"`
                                             ctrl="${v#*=}"
                                     ;;
+                                    "--l2tp-username="* )
+                                            v=`ud_b64 "${v}" "_"`
+                                            l2tp_usr="${v#*=}"
+                                    ;;
+                                    "--l2tp-password="* )
+                                            v=`ud_b64 "${v}"`
+                                            l2tp_pwd="${v#*=}"
+                                            nacl_d "${l2tp_pwd}" "150" "L2TP user password cannot be decrypted"
+                                            l2tp_pwd=`echo "${nacl_d_ret}" | base64 -d | tr -d "\042\047\140"`
+                                    ;;
                             esac
                     done
                 else
@@ -193,6 +203,13 @@ case "${t}" in
                         ip netns exec "ns${wgi}" wg set "${wgi}" peer "${f[0]}" allowed-ips "${addrs}"
                     fi
                     ec=$?
+                    if [ ${ec} -eq 0 -a ! -z "${l2tp_usr}" -a ! -z "${l2tp_pwd}" ]; then
+                        if [ ! -z "${ctrl}" ]; then
+                            echo "\"${l2tp_usr}\" * \"${l2tp_pwd}\" ip_pool_adm 10240/10240 #${f[0]}" >> /etc/accel-ppp.chap-secrets."${wgi}"
+                        else
+                            echo "\"${l2tp_usr}\" * \"${l2tp_pwd}\" * 10240/10240 #${f[0]}" >> /etc/accel-ppp.chap-secrets."${wgi}"
+                        fi
+                    fi
                     if [ ${ec} -eq 0 -a ! -z "${ctrl}" ]; then
                         av6="`echo \"${addrs}\" | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
                         cv6="`echo \"${ctrl}\" | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
@@ -253,6 +270,7 @@ case "${t}" in
                         ip link del "${wgi}veth0"
                     fi
                     set_unset_bandwidth_limit "${wgi}" "${f[0]}"
+                    sed -i "/.*#${f[0]}$/d" /etc/accel-ppp.chap-secrets."${wgi}"
                     ip netns exec "ns${wgi}" wg set "${wgi}" peer "${f[0]}" remove
                     [ $? -eq 0 ] && replay_log "${t}" "${f[0]}" "${wgi}" "${b}"
                     echo "{\"code\": \"$?\"}"
@@ -304,6 +322,10 @@ case "${t}" in
                                         v=`ud_b64 "${v}" "\."`
                                         ext_gw="${v#*=}"
                                 ;;
+                                "--l2tp-preshared-key="* )
+                                        v=`ud_b64 "${v}"`
+                                        l2tp_psk="${v#*=}"
+                                ;;
                         esac
                 done
                 if [ -z "${addrs}" ]; then
@@ -338,24 +360,40 @@ case "${t}" in
                     exit 0
                 fi
 
+                echo "EXT_DEV=${ext_if}" > "/etc/wg-quick-ns.env.${wgi}"
+                echo "EXT_IP=${ext_ip_nm%%/[0-9]*}" >> "/etc/wg-quick-ns.env.${wgi}"
+                echo "EXT_CIDR=${ext_ip_nm##*/}" >> "/etc/wg-quick-ns.env.${wgi}"
+                echo "EXT_GW=${ext_gw}" >> "/etc/wg-quick-ns.env.${wgi}"
+
                 cp -f /etc/wireguard/wg.conf.tpl "/etc/wireguard/${wgi}.conf"
                 chmod 600 "/etc/wireguard/${wgi}.conf"
                 echo "Address = ${addrs}" | sed -e "s/,/\nAddress = /" >> "/etc/wireguard/${wgi}.conf"
                 echo "PrivateKey = ${f[0]}" >> "/etc/wireguard/${wgi}.conf"
                 sed -i "s/\${ext_if}/${ext_if}/g" "/etc/wireguard/${wgi}.conf"
                 sed -i "s/\${ext_ip}/${ext_ip_nm%%/[0-9]*}/g" "/etc/wireguard/${wgi}.conf"
-                sed -i "s#\${ext_ip_nm}#${ext_ip_nm}#g" "/etc/wireguard/${wgi}.conf" # we use hashmarks cause netmask is separated by slash
-                sed -i "s/\${ext_gw}/${ext_gw}/g" "/etc/wireguard/${wgi}.conf"
                 int_ip_nm="`echo ${addrs} | egrep -o '[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*/[0-9]*'`"
                 sed -i "s#\${int_ip_nm}#${int_ip_nm}#g" "/etc/wireguard/${wgi}.conf" # we use hashmarks cause netmask is separated by slash
 
+                ( [ -z "${l2tp_psk}" ] && echo -n || echo ": PSK \"${l2tp_psk}\"" ) > /etc/ipsec.secrets."${wgi}"
+                chmod 600 /etc/ipsec.secrets."${wgi}"
+                cat /etc/ipsec.conf.tpl \
+                    | sed "s/\${ext_ip}/${ext_ip_nm%%/[0-9]*}/g" \
+                    > /etc/ipsec.conf."${wgi}"
+
+                echo -n > /etc/accel-ppp.chap-secrets."${wgi}"
+                chmod 600 /etc/accel-ppp.chap-secrets."${wgi}"
+                cat /etc/accel-ppp.conf.tpl \
+                    | sed "s/\${ext_ip}/${ext_ip_nm%%/[0-9]*}/g" \
+                    | sed "s/\${netns}/${wgi}/g" \
+                    > /etc/accel-ppp.conf."${wgi}"
+
                 echo > /etc/dnsmasq.hosts."${wgi}"
 
-                systemctl start wg-quick-ns@"${ext_if}:${wgi}"
+                systemctl start wg-quick-ns@"${wgi}"
 
                 ec=$?
                 if [ $ec -eq 0 ]; then
-                    systemctl enable wg-quick-ns@"${ext_if}:${wgi}"
+                    systemctl enable wg-quick-ns@"${wgi}"
                 fi
                 echo "{\"code\": \"${ec}\"}"
         ;;
@@ -386,14 +424,17 @@ case "${t}" in
                 fi
                 ext_if="`ip netns exec \"ns${wgi}\" ip -4 -o a | egrep -v ' wg[0-9]* ' | fgrep ' global ' | cut -d \  -f 2`"
 
-                systemctl status wg-quick-ns@"${ext_if}:${wgi}" >/dev/null
+                systemctl status wg-quick-ns@"${wgi}" >/dev/null
 
                 ec=$?
                 if [ ${ec} -eq 0 ]; then
-                    systemctl stop wg-quick-ns@"${ext_if}:${wgi}"
-                    systemctl disable wg-quick-ns@"${ext_if}:${wgi}"
+                    systemctl stop wg-quick-ns@"${wgi}"
+                    systemctl disable wg-quick-ns@"${wgi}"
                     rm -f /etc/wireguard/"${wgi}".{conf,replay} 2>/dev/null
                     rm -f /etc/dnsmasq.hosts."${wgi}" 2>/dev/null
+
+                    rm -f /etc/ipsec.secrets."${wgi}" /etc/ipsec.conf."${wgi}" /etc/accel-ppp.chap-secrets."${wgi}" /etc/accel-ppp.conf."${wgi}" 2>/dev/null
+                    rm -f "/etc/wg-quick-ns.env.${wgi}" 2>/dev/null
 
                     i=0
                     while [ -z "`ip -4 -o a | fgrep \" ${ext_if} \"`" ]; do
@@ -429,14 +470,14 @@ case "${t}" in
                 ext_if="`ip netns exec \"ns${wgi}\" ip -4 -o a | egrep -v ' wg[0-9]* ' | fgrep ' global ' | cut -d \  -f 2`"
                 if [ ! -z "${ext_if}" ]; then
                     if [ "${t}" == "/?wg_block" ]; then
-                        ip netns exec "ns${wgi}" iptables -I FORWARD 1 -i "${wgi}" -o "${ext_if}" -j DROP
-                        ip netns exec "ns${wgi}" ip6tables -I FORWARD 1 -i "${wgi}" -o "${ext_if}" -j DROP
+                        ip netns exec "ns${wgi}" iptables -I FORWARD 1 -o "${ext_if}" -j DROP
+                        ip netns exec "ns${wgi}" ip6tables -I FORWARD 1 -o "${ext_if}" -j DROP
                     else
                         true; while [ $? -eq 0 ]; do
-                            ip netns exec "ns${wgi}" iptables -D FORWARD -i "${wgi}" -o "${ext_if}" -j DROP 2>/dev/null
+                            ip netns exec "ns${wgi}" iptables -D FORWARD -o "${ext_if}" -j DROP 2>/dev/null
                         done
                         true; while [ $? -eq 0 ]; do
-                            ip netns exec "ns${wgi}" ip6tables -D FORWARD -i "${wgi}" -o "${ext_if}" -j DROP 2>/dev/null
+                            ip netns exec "ns${wgi}" ip6tables -D FORWARD -o "${ext_if}" -j DROP 2>/dev/null
                         done
                     fi
                 fi

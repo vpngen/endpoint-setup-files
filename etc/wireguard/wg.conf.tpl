@@ -2,9 +2,6 @@
 ListenPort = 51820
 SaveConfig = false
 ### Interface start and setup
-PreUp = ip addr add ${ext_ip_nm} dev ${ext_if}
-PreUp = ip link set dev ${ext_if} up
-PreUp = ip route add default via ${ext_gw} dev ${ext_if}
 PreUp = iptables -P INPUT DROP
 PreUp = iptables -P FORWARD DROP
 PreUp = ip6tables -P INPUT DROP

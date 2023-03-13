@@ -9,7 +9,7 @@ After=network.target
 Type=forking
 PIDFile=/run/dnsmasq/dnsmasq.%i.pid
 
-Environment=DNSMASQ_OPTS="--conf-file=/etc/dnsmasq.conf -D -R -b -h -I lo -i %i --bind-dynamic -S 1.1.1.1 -H /etc/dnsmasq.hosts.%i"
+Environment=DNSMASQ_OPTS="--conf-file=/etc/dnsmasq.conf -D -R -b -h -I lo --bind-dynamic -S 1.1.1.1 -H /etc/dnsmasq.hosts.%i"
 
 # Test the config file and refuse starting if it is not valid.
 ExecStartPre=/usr/bin/ip netns exec ns%i /etc/init.d/dnsmasq checkconfig "%i"
