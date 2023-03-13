@@ -14,7 +14,8 @@ Environment="nspt=%i"
 ExecStartPre=/usr/bin/mkdir -p /run/dnsmasq
 ExecStartPre=/usr/bin/chown dnsmasq:nogroup /run/dnsmasq
 
-ExecStart=/bin/bash -c "port=${nspt##*:} /usr/bin/ip netns exec ns${nspt%%:*} /usr/sbin/runuser -g nogroup -u $([ ${port:-53} -le 1024 ] && echo "root" || echo "dnsmasq") -- /usr/sbin/dnsmasq --conf-file=/etc/dnsmasq.conf -D -R -b -h -p ${port:-53} -I lo --bind-dynamic -S 1.1.1.1 -H /etc/dnsmasq.hosts.%i -x /run/dnsmasq/dnsmasq.%i.pid"
+ExecStartPre=/bin/bash -c "test ${nspt##*:} -gt 1024"
+ExecStart=/bin/bash -c "/usr/bin/ip netns exec ns${nspt%%:*} /usr/sbin/runuser -g nogroup -u dnsmasq -- /usr/sbin/dnsmasq --conf-file=/etc/dnsmasq.conf -D -R -b -h -p ${nspt##*:} -I lo --bind-dynamic -S 1.1.1.1 -H /etc/dnsmasq.hosts.%i -x /run/dnsmasq/dnsmasq.%i.pid"
 
 ExecReload=/bin/kill -HUP $MAINPID
 

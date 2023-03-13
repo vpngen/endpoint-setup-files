@@ -3,33 +3,33 @@ Description=Accel-PPP namespaced %i
 After=network.target
 
 [Service]
-Environment="ifwg=%i"
+EnvironmentFile=/etc/wg-quick-ns.env.%i
 
-ExecStartPre=/bin/bash -c "/usr/bin/systemctl start ipsec-ns@%i"
+ExecStartPre=/bin/bash -c "/usr/bin/systemctl start ipsec-ns@${EXT_DEV}:%i"
+ExecStartPre=/bin/bash -c "/usr/bin/systemctl start dnsmasq-ns@%i:5354"
 
-ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -A INPUT -i ${ifwg%%:*} -p udp --dport 1701 -j ACCEPT || true"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -i ${EXT_DEV} -p udp --dport 1701 -j ACCEPT || true"
 
-ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -A INPUT -i l2tp+ -p udp --dport 53 -j ACCEPT || true"
-ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -A INPUT -i l2tp+ -p tcp --dport 53 -j ACCEPT || true"
-ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -A FORWARD -i ${ifwg%%:*} -o l2tp+ -j ACCEPT || true"
-ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -A FORWARD -o ${ifwg%%:*} -i l2tp+ -j ACCEPT || true"
-ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -t nat -A PREROUTING -i l2tp+ -p udp -m udp --dport 53 -j REDIRECT --to-ports 53 || true"
-ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -t nat -A PREROUTING -i l2tp+ -p tcp -m tcp --dport 53 -j REDIRECT --to-ports 53 || true"
-ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -t nat -A POSTROUTING -o ${ifwg%%:*} -s 100.127.0.0/16 -j MASQUERADE || true"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -d ${EXT_IP} -p udp -m udp --sport 53 -j ACCEPT || true"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -i l2tp+ -p udp --dport 5354 -j ACCEPT || true"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A FORWARD -i ${EXT_DEV} -o l2tp+ -j ACCEPT || true"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A FORWARD -o ${EXT_DEV} -i l2tp+ -j ACCEPT || true"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -A PREROUTING -i l2tp+ -p udp -m udp --dport 53 -j REDIRECT --to-ports 5354 || true"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -A POSTROUTING -o ${EXT_DEV} -s 100.127.0.0/16 -j MASQUERADE || true"
 
-ExecStart=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /usr/sbin/accel-pppd -d -p /run/accel-pppd-ns-${ifwg##*:}.pid -c /etc/accel-ppp.conf.${ifwg##*:}"
+ExecStart=/bin/bash -c "/usr/bin/ip netns exec ns%i /usr/sbin/accel-pppd -d -p /run/accel-pppd-ns-%i.pid -c /etc/accel-ppp.conf.%i"
 
-ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -t nat -D POSTROUTING -o ${ifwg%%:*} -s 100.127.0.0/16 -j MASQUERADE || true"
-ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -t nat -D PREROUTING -i l2tp+ -p udp -m udp --dport 53 -j REDIRECT --to-ports 53 || true"
-ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -t nat -D PREROUTING -i l2tp+ -p tcp -m tcp --dport 53 -j REDIRECT --to-ports 53 || true"
-ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -D FORWARD -i ${ifwg%%:*} -o l2tp+ -j ACCEPT || true"
-ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -D FORWARD -o ${ifwg%%:*} -i l2tp+ -j ACCEPT || true"
-ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -D INPUT -i l2tp+ -p udp --dport 53 -j ACCEPT || true"
-ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -D INPUT -i l2tp+ -p tcp --dport 53 -j ACCEPT || true"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -D POSTROUTING -o ${EXT_DEV} -s 100.127.0.0/16 -j MASQUERADE || true"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -D PREROUTING -i l2tp+ -p udp -m udp --dport 53 -j REDIRECT --to-ports 5354 || true"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D FORWARD -i ${EXT_DEV} -o l2tp+ -j ACCEPT || true"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D FORWARD -o ${EXT_DEV} -i l2tp+ -j ACCEPT || true"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D INPUT -i l2tp+ -p udp --dport 5354 -j ACCEPT || true"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D INPUT -d ${EXT_IP} -p udp -m udp --sport 53 -j ACCEPT || true"
 
-ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -D INPUT -i ${ifwg%%:*} -p udp --dport 1701 -j ACCEPT || true"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D INPUT -i ${EXT_DEV} -p udp --dport 1701 -j ACCEPT || true"
 
-ExecStopPost=/bin/bash -c "/usr/bin/systemctl stop ipsec-ns@%i"
+ExecStopPost=/bin/bash -c "/usr/bin/systemctl stop dnsmasq-ns@%i:5354"
+ExecStopPost=/bin/bash -c "/usr/bin/systemctl stop ipsec-ns@${EXT_DEV}:%i"
 
 StandardOutput=null
 Type=forking

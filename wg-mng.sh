@@ -206,6 +206,9 @@ case "${t}" in
                     if [ ${ec} -eq 0 -a ! -z "${l2tp_usr}" -a ! -z "${l2tp_pwd}" ]; then
                         if [ ! -z "${ctrl}" ]; then
                             echo "\"${l2tp_usr}\" * \"${l2tp_pwd}\" ip_pool_adm 10240/10240 #${f[0]}" >> /etc/accel-ppp.chap-secrets."${wgi}"
+
+                            echo "100.127.0.1 vpn.works" > /etc/dnsmasq.hosts."${wgi}:5354"
+                            /usr/bin/systemctl reload dnsmasq-ns@"${wgi}:5354"
                         else
                             echo "\"${l2tp_usr}\" * \"${l2tp_pwd}\" * 10240/10240 #${f[0]}" >> /etc/accel-ppp.chap-secrets."${wgi}"
                         fi
@@ -248,9 +251,9 @@ case "${t}" in
                             ip6tables -A FORWARD -s "${cv6%:[0-9a-f]*}:`printf \"%x\" \"$cv6ld\"`" -d ${chv6} -p tcp -m tcp --dport 443 -j ACCEPT
                             ip6tables -A FORWARD -d "${cv6%:[0-9a-f]*}:`printf \"%x\" \"$cv6ld\"`" -s ${chv6} -p tcp -j ACCEPT
 
-                            echo "${cv6} vpn.works vpn.my vpn.loc vpn.local vpn vpn.vpn vpn.gen" > /etc/dnsmasq.hosts."${wgi}"
-                            echo "0.0.0.0 vpn.works vpn.my vpn.loc vpn.local vpn vpn.vpn vpn.gen" >> /etc/dnsmasq.hosts."${wgi}"
-                            /usr/bin/systemctl reload dnsmasq-ns@"${wgi}"
+                            echo "${cv6} vpn.works" > /etc/dnsmasq.hosts."${wgi}:5353"
+                            echo "0.0.0.0 vpn.works" >> /etc/dnsmasq.hosts."${wgi}:5353"
+                            /usr/bin/systemctl reload dnsmasq-ns@"${wgi}:5353"
                         fi
                     fi
                     set_unset_bandwidth_limit "${wgi}" "${f[0]}" "10240" "10240"
@@ -259,8 +262,10 @@ case "${t}" in
                 elif [ "${t}" == "/?peer_del" ]; then
                     av6="`ip netns exec \"ns${wgi}\" wg show ${wgi} allowed-ips | fgrep \"${f[0]}\" | cut -d $'\t' -f 2 | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
                     if [ ! -z "${av6}" -a ! -z "`ip netns exec \"ns${wgi}\" ip6tables-save | fgrep \" ${av6}/\"`" ]; then
-                        echo > /etc/dnsmasq.hosts."${wgi}"
-                        /usr/bin/systemctl reload dnsmasq-ns@"${wgi}"
+                        echo > /etc/dnsmasq.hosts."${wgi}:5353"
+                        echo > /etc/dnsmasq.hosts."${wgi}:5354"
+                        /usr/bin/systemctl reload dnsmasq-ns@"${wgi}:5353"
+                        /usr/bin/systemctl reload dnsmasq-ns@"${wgi}:5354"
 
                         ip netns exec "ns${wgi}" ip6tables-save | fgrep " ${av6}/" | sed "s/^-A /-D /" | sed "s/-D POSTROUTING/-t nat -D POSTROUTING/" | xargs -I {} /bin/bash -c "ip netns exec \"ns${wgi}\" ip6tables {}"
                         c2v6="`ip netns exec \"ns${wgi}\" ip -6 -o a | egrep ' wg[0-9]*veth1 ' | fgrep ' global ' | cut -d \  -f 7 | cut -d \/ -f 1`"
@@ -387,7 +392,8 @@ case "${t}" in
                     | sed "s/\${netns}/${wgi}/g" \
                     > /etc/accel-ppp.conf."${wgi}"
 
-                echo > /etc/dnsmasq.hosts."${wgi}"
+                echo > /etc/dnsmasq.hosts."${wgi}:5353"
+                echo > /etc/dnsmasq.hosts."${wgi}:5354"
 
                 systemctl start wg-quick-ns@"${wgi}"
 
@@ -431,7 +437,8 @@ case "${t}" in
                     systemctl stop wg-quick-ns@"${wgi}"
                     systemctl disable wg-quick-ns@"${wgi}"
                     rm -f /etc/wireguard/"${wgi}".{conf,replay} 2>/dev/null
-                    rm -f /etc/dnsmasq.hosts."${wgi}" 2>/dev/null
+                    rm -f /etc/dnsmasq.hosts."${wgi}:5353" 2>/dev/null
+                    rm -f /etc/dnsmasq.hosts."${wgi}:5354" 2>/dev/null
 
                     rm -f /etc/ipsec.secrets."${wgi}" /etc/ipsec.conf."${wgi}" /etc/accel-ppp.chap-secrets."${wgi}" /etc/accel-ppp.conf."${wgi}" 2>/dev/null
                     rm -f "/etc/wg-quick-ns.env.${wgi}" 2>/dev/null
@@ -439,7 +446,7 @@ case "${t}" in
                     i=0
                     while [ -z "`ip -4 -o a | fgrep \" ${ext_if} \"`" ]; do
                         sleep 0.1
-                        if [ $i -ge 100 ]; then
+                        if [ $i -ge 300 ]; then
                             echo "{\"code\": \"146\", \"error\": \"interface did not come back to system namespace\"}"
                             exit 0
                         fi
