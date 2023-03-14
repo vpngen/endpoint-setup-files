@@ -4,7 +4,7 @@ l2tp
 auth_mschap_v2
 chap-secrets
 ippool
-#pppd_compat
+pppd_compat
 
 [core]
 thread-count=4
@@ -48,8 +48,8 @@ level=4
 
 [pppd-compat]
 verbose=1
-ip-up=/etc/ppp/ip-up
-ip-down=/etc/ppp/ip-down
+ip-up=/etc/accel-ppp.ip-up
+ip-down=/etc/accel-ppp.ip-down
 
 [chap-secrets]
 gw-ip-address=100.127.0.1

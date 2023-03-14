@@ -203,16 +203,6 @@ case "${t}" in
                         ip netns exec "ns${wgi}" wg set "${wgi}" peer "${f[0]}" allowed-ips "${addrs}"
                     fi
                     ec=$?
-                    if [ ${ec} -eq 0 -a ! -z "${l2tp_usr}" -a ! -z "${l2tp_pwd}" ]; then
-                        if [ ! -z "${ctrl}" ]; then
-                            echo "\"${l2tp_usr}\" * \"${l2tp_pwd}\" ip_pool_adm 10240/10240 #${f[0]}" >> /etc/accel-ppp.chap-secrets."${wgi}"
-
-                            echo "100.127.0.1 vpn.works" > /etc/dnsmasq.hosts."${wgi}:5354"
-                            /usr/bin/systemctl reload dnsmasq-ns@"${wgi}:5354"
-                        else
-                            echo "\"${l2tp_usr}\" * \"${l2tp_pwd}\" * 10240/10240 #${f[0]}" >> /etc/accel-ppp.chap-secrets."${wgi}"
-                        fi
-                    fi
                     if [ ${ec} -eq 0 -a ! -z "${ctrl}" ]; then
                         av6="`echo \"${addrs}\" | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
                         cv6="`echo \"${ctrl}\" | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
@@ -256,18 +246,43 @@ case "${t}" in
                             /usr/bin/systemctl reload dnsmasq-ns@"${wgi}:5353"
                         fi
                     fi
+                    if [ ${ec} -eq 0 -a ! -z "${l2tp_usr}" -a ! -z "${l2tp_pwd}" ]; then
+                        if [ ! -z "${ctrl}" ]; then
+                            echo "\"${l2tp_usr}\" * \"${l2tp_pwd}\" ip_pool_adm 10240/10240 #${f[0]}" >> /etc/accel-ppp.chap-secrets."${wgi}"
+
+                            echo "100.127.0.1 vpn.works" > /etc/dnsmasq.hosts."${wgi}:5354"
+                            /usr/bin/systemctl reload dnsmasq-ns@"${wgi}:5354"
+
+                            av6="`echo \"${addrs}\" | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
+                            cv6="`echo \"${ctrl}\" | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
+                            cv6ld=`expr $(printf "%d" "0x${cv6##*:}" 2>/dev/null) + 1`
+
+                            ip netns exec "ns${wgi}" ip6tables -A INPUT -s "${cv6}" -d "${cv6%:[0-9a-f]*}:`printf \"%x\" \"$cv6ld\"`" -p tcp -m tcp -m multiport --sports 80,443 -m comment --comment " ${av6}/" -j ACCEPT
+                            ip netns exec "ns${wgi}" iptables -t nat -A PREROUTING -i l2tp+ -d 100.127.0.1 -p tcp -m tcp --dport 80 -j REDIRECT --to-ports 8080
+                            ip netns exec "ns${wgi}" iptables -t nat -A PREROUTING -i l2tp+ -d 100.127.0.1 -p tcp -m tcp --dport 443 -j REDIRECT --to-ports 8443
+                            /usr/bin/systemctl start ipsec-keydesk-proxy-80@"${wgi}:${cv6}"
+                            /usr/bin/systemctl start ipsec-keydesk-proxy-443@"${wgi}:${cv6}"
+                        else
+                            echo "\"${l2tp_usr}\" * \"${l2tp_pwd}\" * 10240/10240 #${f[0]}" >> /etc/accel-ppp.chap-secrets."${wgi}"
+                        fi
+                    fi
                     set_unset_bandwidth_limit "${wgi}" "${f[0]}" "10240" "10240"
                     [ ${ec} -eq 0 ] && replay_log "${t}" "${f[0]}" "${wgi}" "${b}"
                     echo "{\"code\": \"${ec}\"}"
                 elif [ "${t}" == "/?peer_del" ]; then
                     av6="`ip netns exec \"ns${wgi}\" wg show ${wgi} allowed-ips | fgrep \"${f[0]}\" | cut -d $'\t' -f 2 | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
                     if [ ! -z "${av6}" -a ! -z "`ip netns exec \"ns${wgi}\" ip6tables-save | fgrep \" ${av6}/\"`" ]; then
+                        ip netns exec "ns${wgi}" iptables -t nat -D PREROUTING -i l2tp+ -d 100.127.0.1 -p tcp -m tcp --dport 80 -j REDIRECT --to-ports 8080
+                        ip netns exec "ns${wgi}" iptables -t nat -D PREROUTING -i l2tp+ -d 100.127.0.1 -p tcp -m tcp --dport 443 -j REDIRECT --to-ports 8443
+                        /usr/bin/systemctl stop ipsec-keydesk-proxy-80@"${wgi}:*"
+                        /usr/bin/systemctl stop ipsec-keydesk-proxy-443@"${wgi}:*"
+
                         echo > /etc/dnsmasq.hosts."${wgi}:5353"
                         echo > /etc/dnsmasq.hosts."${wgi}:5354"
                         /usr/bin/systemctl reload dnsmasq-ns@"${wgi}:5353"
                         /usr/bin/systemctl reload dnsmasq-ns@"${wgi}:5354"
 
-                        ip netns exec "ns${wgi}" ip6tables-save | fgrep " ${av6}/" | sed "s/^-A /-D /" | sed "s/-D POSTROUTING/-t nat -D POSTROUTING/" | xargs -I {} /bin/bash -c "ip netns exec \"ns${wgi}\" ip6tables {}"
+                        ip netns exec "ns${wgi}" ip6tables-save | fgrep " ${av6}/" | sed "s/^-A /-D /" | sed "s/-D POSTROUTING/-t nat -D POSTROUTING/" | xargs -L 1 ip netns exec "ns${wgi}" ip6tables
                         c2v6="`ip netns exec \"ns${wgi}\" ip -6 -o a | egrep ' wg[0-9]*veth1 ' | fgrep ' global ' | cut -d \  -f 7 | cut -d \/ -f 1`"
                         if [ ! -z "${c2v6}" ]; then
                             ip6tables-save | fgrep " ${c2v6}/" | sed "s/^-A /-D /" | sed "s/-D PREROUTING/-t nat -D PREROUTING/" | sed "s/-D POSTROUTING/-t nat -D POSTROUTING/" | xargs -I {} /bin/bash -c "ip6tables {}"

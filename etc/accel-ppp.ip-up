@@ -1,0 +1,7 @@
+#!/bin/bash
+
+if [[ "$1" =~ l2tp[0-9][0-9]* ]] && [[ "$5" =~ 100.127.255.[0-9][0-9]* ]]; then
+    # accel-ppp is already namespaced
+    /usr/sbin/iptables -C INPUT -i "$1" -d 100.127.0.1 -p tcp -m multiport --dports 8080,8443 -j ACCEPT >/dev/null 2>&1 \
+    || /usr/sbin/iptables -A INPUT -i "$1" -d 100.127.0.1 -p tcp -m multiport --dports 8080,8443 -j ACCEPT || true
+fi

@@ -27,6 +27,8 @@ ExecStopPost=/bin/bash -c "test -f /etc/systemd/system/fakehttp-ns@.service && /
 ExecStopPost=/bin/bash -c "test -f /etc/systemd/system/fakehttps-ns@.service && /usr/bin/systemctl stop fakehttps-ns@${EXT_DEV}:%i"
 ExecStopPost=/bin/bash -c "test -f /etc/systemd/system/accel-ppp-ns@.service && /usr/bin/systemctl stop accel-ppp-ns@%i"
 ExecStopPost=/bin/bash -c "/usr/bin/systemctl stop dnsmasq-ns@%i:5353"
+ExecStopPost=/bin/bash -c "test -f /etc/systemd/system/ipsec-keydesk-proxy-80@.service && ( /usr/bin/systemctl stop ipsec-keydesk-proxy-80@%i:* || true )"
+ExecStopPost=/bin/bash -c "test -f /etc/systemd/system/ipsec-keydesk-proxy-443@.service && ( /usr/bin/systemctl stop ipsec-keydesk-proxy-443@%i:* || true )"
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns del ns%i"
 #ExecReload=/usr/bin/ip netns exec ns%i /bin/bash -c "exec /usr/bin/wg syncconf %i <(exec /usr/bin/wg-quick strip %i)"
 Environment=WG_ENDPOINT_RESOLUTION_RETRIES=infinity
