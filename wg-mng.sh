@@ -5,17 +5,21 @@ function ud_b64() { echo -e "${1//%/\\x}" | sed "s/[^[:alnum:]\+\/=$2]//g"; }
 
 function nacl_d() {
     nacl_d_ret=$1
-    if [ ${#nacl_d_ret} -eq 44 ]; then
-        return 0
-    fi
     nacl pubkey < /vg-endpoint.json >/dev/null 2>&1
     if [ $? -ne 0 ]; then
-        echo "{\"code\": \"147\", \"error\": \"Nacl command not found or Endpoint private key is invalid\"}"
+        echo "{\"code\": \"147\", \"error\": \"Nacl command not found or endpoint private key is invalid\"}"
         exit 0
     fi
     nacl_d_ret=`echo -n "${nacl_d_ret}" | nacl -b unseal /vg-endpoint.json`
+    local nacl_d_ret_len=`echo -n "${nacl_d_ret}" | base64 -d | wc -c`
     if [ $? -ne 0 ]; then
-        echo "{\"code\": \"$2\", \"error\": \"$3\"}"
+        echo "{\"code\": \"148\", \"error\": \"$2 cannot be decrypted\"}"
+        exit 0
+    fi
+    if [[ ! -z "$3" && $3 -ge 0 && ( ${nacl_d_ret_len} -lt $3 || ( ! -z "$4" && ${nacl_d_ret_len} -gt $4 ) ) ]]; then
+        echo -n "{\"code\": \"149\", \"error\": \"$2 is less than $3"
+        [ ! -z "$4" ] && echo -n " or greater than $4"
+        echo " characters long\"}"
         exit 0
     fi
     return 0
@@ -154,7 +158,7 @@ case "${t}" in
                                     "--wg-psk-key="* )
                                             v=`ud_b64 "${v}"`
                                             wpsk="${v#*=}"
-                                            nacl_d "${wpsk}" "149" "Wireguard preshared key cannot be decrypted"
+                                            nacl_d "${wpsk}" "Wireguard preshared key" 32 32
                                             wpsk="${nacl_d_ret}"
                                     ;;
                                     "--allowed-ips="* )
@@ -168,11 +172,13 @@ case "${t}" in
                                     "--l2tp-username="* )
                                             v=`ud_b64 "${v}" "_"`
                                             l2tp_usr="${v#*=}"
+                                            nacl_d "${l2tp_usr}" "L2TP username" 12 16
+                                            l2tp_usr=`echo "${nacl_d_ret}" | base64 -d | sed "s/[^a-zA-Z0-9_]//g"`
                                     ;;
                                     "--l2tp-password="* )
                                             v=`ud_b64 "${v}"`
                                             l2tp_pwd="${v#*=}"
-                                            nacl_d "${l2tp_pwd}" "150" "L2TP user password cannot be decrypted"
+                                            nacl_d "${l2tp_pwd}" "L2TP user password" 16 64
                                             l2tp_pwd=`echo "${nacl_d_ret}" | base64 -d | tr -d "\042\047\140"`
                                     ;;
                             esac
@@ -207,7 +213,7 @@ case "${t}" in
                         av6="`echo \"${addrs}\" | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
                         cv6="`echo \"${ctrl}\" | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
                         if [ ! -z "${av6}" -a ! -z "${cv6}" ]; then
-                            clv4="`ip -n \"ns${wgi}\" -4 -o a | egrep -v ' wg[0-9]* ' | fgrep ' global ' | cut -d \  -f 7 | cut -d \/ -f 1`"
+                            clv4="`ip -n \"ns${wgi}\" -4 r get 1.1.1.1 | head -1 | cut -d \  -f 7`"
                             if [ -z "${clv4}" ]; then
                                 echo "{\"code\": \"140\", \"warning\": \"control interface is not set due to incorrect ip address\"}"
                                 exit 0
@@ -310,7 +316,7 @@ case "${t}" in
                     exit 0
                 else
                     f[0]=`ud_b64 "${f[0]}"`
-                    nacl_d "${f[0]}" "148" "Wireguard interface private key cannot be decrypted"
+                    nacl_d "${f[0]}" "Wireguard interface private key" 32 32
                     f[0]="${nacl_d_ret}"
                 fi
                 if [ ! -z "`fgrep -s \"${f[0]}\" /etc/wireguard/wg[0-9]*.conf`" ]; then
@@ -345,6 +351,8 @@ case "${t}" in
                                 "--l2tp-preshared-key="* )
                                         v=`ud_b64 "${v}"`
                                         l2tp_psk="${v#*=}"
+                                        nacl_d "${l2tp_psk}" "L2TP server preshared key" 16 64
+                                        l2tp_psk=`echo "${nacl_d_ret}" | base64 -d | tr -d "\042\047\140"`
                                 ;;
                         esac
                 done
@@ -424,7 +432,7 @@ case "${t}" in
                     exit 0
                 else
                     f[0]=`ud_b64 "${f[0]}"`
-                    nacl_d "${f[0]}" "148" "Wireguard interface private key cannot be decrypted"
+                    nacl_d "${f[0]}" "Wireguard interface private key" 32 32
                     f[0]="${nacl_d_ret}"
                 fi
                 if [ ! -z "${f[0]}" ]; then
@@ -443,7 +451,7 @@ case "${t}" in
                 if [ ! -z "${ccv6}" ]; then
                     ip6tables-save | fgrep " ${ccv6}/" | sed "s/^-A /-D /" | sed "s/-D PREROUTING/-t nat -D PREROUTING/" | sed "s/-D POSTROUTING/-t nat -D POSTROUTING/" | xargs -I {} /bin/bash -c "ip6tables {}"
                 fi
-                ext_if="`ip netns exec \"ns${wgi}\" ip -4 -o a | egrep -v ' wg[0-9]* ' | fgrep ' global ' | cut -d \  -f 2`"
+                ext_if="`ip -n \"ns${wgi}\" -4 r get 1.1.1.1 | head -1 | cut -d \  -f 5`"
 
                 systemctl status wg-quick-ns@"${wgi}" >/dev/null
 
@@ -489,7 +497,7 @@ case "${t}" in
                     echo "{\"code\": \"143\", \"error\": \"no interface found for supplied public key\"}"
                     exit 0
                 fi
-                ext_if="`ip netns exec \"ns${wgi}\" ip -4 -o a | egrep -v ' wg[0-9]* ' | fgrep ' global ' | cut -d \  -f 2`"
+                ext_if="`ip -n \"ns${wgi}\" -4 r get 1.1.1.1 | head -1 | cut -d \  -f 5`"
                 if [ ! -z "${ext_if}" ]; then
                     if [ "${t}" == "/?wg_block" ]; then
                         ip netns exec "ns${wgi}" iptables -I FORWARD 1 -o "${ext_if}" -j DROP
