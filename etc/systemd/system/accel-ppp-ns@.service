@@ -10,6 +10,8 @@ ExecStartPre=/bin/bash -c "/usr/bin/systemctl start dnsmasq-ns@%i:5354"
 
 ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -i ${EXT_DEV} -p udp --dport 1701 -j ACCEPT || true"
 
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -i lo -p tcp --dport 2001 -j ACCEPT || true"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -i lo -p tcp --sport 2001 -j ACCEPT || true"
 ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -d ${EXT_IP} -p udp -m udp --sport 53 -j ACCEPT || true"
 ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -i l2tp+ -p udp --dport 5354 -j ACCEPT || true"
 ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A FORWARD -i ${EXT_DEV} -o l2tp+ -j ACCEPT || true"
@@ -27,6 +29,8 @@ ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D FORWARD -i ${
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D FORWARD -o ${EXT_DEV} -i l2tp+ -j ACCEPT || true"
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D INPUT -i l2tp+ -p udp --dport 5354 -j ACCEPT || true"
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D INPUT -d ${EXT_IP} -p udp -m udp --sport 53 -j ACCEPT || true"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D INPUT -i lo -p tcp --sport 2001 -j ACCEPT || true"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D INPUT -i lo -p tcp --dport 2001 -j ACCEPT || true"
 
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D INPUT -i ${EXT_DEV} -p udp --dport 1701 -j ACCEPT || true"
 
