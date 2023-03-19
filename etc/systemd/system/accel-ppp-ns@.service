@@ -16,11 +16,11 @@ ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A FORWARD -i ${
 ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A FORWARD -o ${EXT_DEV} -i l2tp+ -j ACCEPT || true"
 ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -A PREROUTING -i l2tp+ -p udp -m udp --dport 53 -j REDIRECT --to-ports 5354 || true"
 ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -A POSTROUTING -s 100.127.0.0/16 -m hashlimit --hashlimit-name logv4 --hashlimit-mode srcip,dstip,dstport --hashlimit-upto 1/minute --hashlimit-burst 1 --hashlimit-htable-expire 60000 -j LOG --log-prefix \"[LEA-DIR]: \" || true"
-ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -A POSTROUTING -o ${EXT_DEV} -s 100.127.0.0/16 -j MASQUERADE || true"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -A POSTROUTING -s 100.127.0.0/16 -j SNAT --to ${EXT_IP} || true"
 
 ExecStart=/bin/bash -c "/usr/bin/ip netns exec ns%i /usr/sbin/accel-pppd -d -p /run/accel-pppd-ns-%i.pid -c /etc/accel-ppp.conf.%i"
 
-ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -D POSTROUTING -o ${EXT_DEV} -s 100.127.0.0/16 -j MASQUERADE || true"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -D POSTROUTING -s 100.127.0.0/16 -j SNAT --to ${EXT_IP} || true"
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -D POSTROUTING -s 100.127.0.0/16 -m hashlimit --hashlimit-name logv4 --hashlimit-mode srcip,dstip,dstport --hashlimit-upto 1/minute --hashlimit-burst 1 --hashlimit-htable-expire 60000 -j LOG --log-prefix \"[LEA-DIR]: \" || true"
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -D PREROUTING -i l2tp+ -p udp -m udp --dport 53 -j REDIRECT --to-ports 5354 || true"
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D FORWARD -i ${EXT_DEV} -o l2tp+ -j ACCEPT || true"
