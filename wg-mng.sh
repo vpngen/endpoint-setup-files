@@ -158,7 +158,7 @@ case "${t}" in
                                     "--wg-psk-key="* )
                                             v=`ud_b64 "${v}"`
                                             wpsk="${v#*=}"
-                                            nacl_d "${wpsk}" "Wireguard preshared key" 32 32
+                                            nacl_d "${wpsk}" "Wireguard preshared key" -1
                                             wpsk="${nacl_d_ret}"
                                     ;;
                                     "--allowed-ips="* )
