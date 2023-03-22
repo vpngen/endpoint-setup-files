@@ -306,8 +306,11 @@ case "${t}" in
                     fi
                     set_unset_bandwidth_limit "${wgi}" "${f[0]}"
 
-                    sed -i "/.*#${f[0]}$/d" /etc/accel-ppp.chap-secrets."${wgi}"
-                    sed -i "/.*#${f[0]}$/d" /etc/ipsec.secrets."${wgi}"
+                    # sed is not used due to complicated special symbol escaping
+                    fgrep -v " #${f[0]}" /etc/accel-ppp.chap-secrets."${wgi}" > /etc/accel-ppp.chap-secrets."${wgi}".tmp
+                    mv -f /etc/accel-ppp.chap-secrets."${wgi}"{.tmp,}
+                    fgrep -v " #${f[0]}" /etc/ipsec.secrets."${wgi}" > /etc/ipsec.secrets."${wgi}".tmp
+                    mv -f /etc/ipsec.secrets."${wgi}"{.tmp,}
                     ip netns exec "ns${wgi}" /usr/sbin/ipsec secrets >&2
 
                     ip netns exec "ns${wgi}" wg set "${wgi}" peer "${f[0]}" remove
