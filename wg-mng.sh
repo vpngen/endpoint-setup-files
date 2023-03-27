@@ -259,7 +259,7 @@ case "${t}" in
                         fi
                     fi
                     if [ ${ec} -eq 0 -a ! -z "${l2tp_psk}" -a ! -z "${l2tp_usr}" -a ! -z "${l2tp_pwd}" ]; then
-                        echo ": PSK \"${l2tp_psk}\" #${wpk}" > /etc/ipsec.secrets."${wgi}"
+                        echo ": PSK \"${l2tp_psk}\" #${f[0]}" > /etc/ipsec.secrets."${wgi}"
                         ip netns exec "ns${wgi}" /usr/sbin/ipsec secrets >&2
 
                         if [ ! -z "${ctrl}" ]; then
