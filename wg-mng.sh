@@ -169,12 +169,6 @@ case "${t}" in
                                             v=`ud_b64 "${v}" ":"`
                                             ctrl="${v#*=}"
                                     ;;
-                                    "--l2tp-preshared-key="* )
-                                            v=`ud_b64 "${v}"`
-                                            l2tp_psk="${v#*=}"
-                                            nacl_d "${l2tp_psk}" "L2TP server preshared key" 16 64
-                                            l2tp_psk=`echo "${nacl_d_ret}" | base64 -d | tr -d "\042\047\140"`
-                                    ;;
                                     "--l2tp-username="* )
                                             v=`ud_b64 "${v}" "_"`
                                             l2tp_usr="${v#*=}"
@@ -258,10 +252,7 @@ case "${t}" in
                             /usr/bin/systemctl reload dnsmasq-ns@"${wgi}:5353"
                         fi
                     fi
-                    if [ ${ec} -eq 0 -a ! -z "${l2tp_psk}" -a ! -z "${l2tp_usr}" -a ! -z "${l2tp_pwd}" ]; then
-                        echo ": PSK \"${l2tp_psk}\" #${f[0]}" > /etc/ipsec.secrets."${wgi}"
-                        ip netns exec "ns${wgi}" /usr/sbin/ipsec secrets >&2
-
+                    if [ ${ec} -eq 0 -a ! -z "${l2tp_usr}" -a ! -z "${l2tp_pwd}" ]; then
                         if [ ! -z "${ctrl}" ]; then
                             echo "\"${l2tp_usr}\" * \"${l2tp_pwd}\" ip_pool_adm 10240/10240 #${f[0]}" >> /etc/accel-ppp.chap-secrets."${wgi}"
 
@@ -309,9 +300,6 @@ case "${t}" in
                     # sed is not used due to complicated special symbol escaping
                     fgrep -v " #${f[0]}" /etc/accel-ppp.chap-secrets."${wgi}" > /etc/accel-ppp.chap-secrets."${wgi}".tmp
                     mv -f /etc/accel-ppp.chap-secrets."${wgi}"{.tmp,}
-                    fgrep -v " #${f[0]}" /etc/ipsec.secrets."${wgi}" > /etc/ipsec.secrets."${wgi}".tmp
-                    mv -f /etc/ipsec.secrets."${wgi}"{.tmp,}
-                    ip netns exec "ns${wgi}" /usr/sbin/ipsec secrets >&2
 
                     ip netns exec "ns${wgi}" wg set "${wgi}" peer "${f[0]}" remove
                     [ $? -eq 0 ] && replay_log "${t}" "${f[0]}" "${wgi}" "${b}"
@@ -382,6 +370,12 @@ case "${t}" in
                                         v=`ud_b64 "${v}" "\."`
                                         ext_gw="${v#*=}"
                                 ;;
+                                "--l2tp-preshared-key="* )
+                                        v=`ud_b64 "${v}"`
+                                        l2tp_psk="${v#*=}"
+                                        nacl_d "${l2tp_psk}" "L2TP server preshared key" 16 64
+                                        l2tp_psk=`echo "${nacl_d_ret}" | base64 -d | tr -d "\042\047\140"`
+                                ;;
                         esac
                 done
                 if [ -z "${addrs}" ]; then
@@ -430,7 +424,7 @@ case "${t}" in
                 int_ip_nm="`echo ${addrs} | egrep -o '[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*/[0-9]*'`"
                 sed -i "s#\${int_ip_nm}#${int_ip_nm}#g" "/etc/wireguard/${wgi}.conf" # we use hashmarks cause netmask is separated by slash
 
-                echo -n > /etc/ipsec.secrets."${wgi}"
+                ( [ -z "${l2tp_psk}" ] && echo -n || echo ": PSK \"${l2tp_psk}\"" ) > /etc/ipsec.secrets."${wgi}"
                 chmod 600 /etc/ipsec.secrets."${wgi}"
                 cat /etc/ipsec.conf.tpl \
                     | sed "s/\${ext_ip}/${ext_ip_nm%%/[0-9]*}/g" \
