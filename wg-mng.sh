@@ -68,8 +68,11 @@ function replay_log {
         ;;
         "/?bw_unset" | "/?peer_del" | "/?wg_unblock")
             declare -A cm=( [bw_unset]=bw_set [peer_del]=peer_add [wg_unblock]=wg_block )
-            ml="`fgrep \"/?${cm[${1##/\?}]}=$2\" \"/etc/wireguard/${3}.replay\"`" # third parameter is empty for wg_unblock
-            fgrep -v "${ml}" "/etc/wireguard/${3}.replay" > "/etc/wireguard/${3}.replay.tmp"
+            while read line; do
+                ud_b64 "$line" "?_&" | fgrep -q "/?${cm[${1##/\?}]}=$2"
+                [ $? -eq 1 ] &&
+                    echo $line
+            done < "/etc/wireguard/${3}.replay" > "/etc/wireguard/${3}.replay.tmp"
             mv -f "/etc/wireguard/${3}.replay.tmp" "/etc/wireguard/${3}.replay"
         ;;
     esac
