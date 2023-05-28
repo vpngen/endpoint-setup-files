@@ -1,2 +1,2 @@
 zabbix ALL = NOPASSWD: /usr/bin/ip netns exec nswg? cat /sys/class/net/*/statistics/?x_bytes
-zabbix ALL = NOPASSWD: /usr/bin/ip -n nswg? a
+zabbix ALL = NOPASSWD: /usr/bin/ip -n nswg? r get *
