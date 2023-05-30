@@ -359,6 +359,7 @@ case "${t}" in
                     echo "{\"code\": \"132\", \"error\": \"there are no free Wireguard interfaces\"}"
                     exit 0
                 fi
+                wg_port="51820"
                 for v in "${f[@]:1}"; do
                         case "${v}" in
                                 "--internal-nets="* )
@@ -378,6 +379,10 @@ case "${t}" in
                                         l2tp_psk="${v#*=}"
                                         nacl_d "${l2tp_psk}" "L2TP server preshared key" 16 64
                                         l2tp_psk=`echo "${nacl_d_ret}" | base64 -d | tr -d "\042\047\140"`
+                                ;;
+                                "--wireguard-port="* )
+                                        wg_port="${v#*=}"
+                                        wg_port="${wg_port%%[^0-9]*}"
                                 ;;
                         esac
                 done
@@ -422,6 +427,7 @@ case "${t}" in
                 chmod 600 "/etc/wireguard/${wgi}.conf"
                 echo "Address = ${addrs}" | sed -e "s/,/\nAddress = /" >> "/etc/wireguard/${wgi}.conf"
                 echo "PrivateKey = ${f[0]}" >> "/etc/wireguard/${wgi}.conf"
+                sed -i "s/\${wg_port}/${wg_port}/g" "/etc/wireguard/${wgi}.conf"
                 sed -i "s/\${ext_if}/${ext_if}/g" "/etc/wireguard/${wgi}.conf"
                 sed -i "s/\${ext_ip}/${ext_ip_nm%%/[0-9]*}/g" "/etc/wireguard/${wgi}.conf"
                 int_ip_nm="`echo ${addrs} | egrep -o '[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*/[0-9]*'`"

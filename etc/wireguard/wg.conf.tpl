@@ -1,5 +1,5 @@
 [Interface]
-ListenPort = 51820
+ListenPort = ${wg_port}
 SaveConfig = false
 ### Interface start and setup
 PreUp = iptables -P INPUT DROP
@@ -16,7 +16,7 @@ PreUp = iptables -t nat -A POSTROUTING -s ${int_ip_nm} -m hashlimit --hashlimit-
 PreUp = iptables -t nat -A POSTROUTING -s ${int_ip_nm} -j SNAT --to ${ext_ip}
 PreUp = ip6tables -t nat -A POSTROUTING -o ${ext_if} -m hashlimit --hashlimit-name logv6 --hashlimit-mode srcip,dstip,dstport --hashlimit-upto 1/minute --hashlimit-burst 1 --hashlimit-htable-expire 60000 -j LOG --log-prefix "[LEA-DIR]: "
 PreUp = ip6tables -t nat -A POSTROUTING -o ${ext_if} -j MASQUERADE
-PreUp = iptables -A INPUT -d ${ext_ip} -p udp -m udp --dport 51820 -j ACCEPT
+PreUp = iptables -A INPUT -d ${ext_ip} -p udp -m udp --dport ${wg_port} -j ACCEPT
 PreUp = iptables -A INPUT -d ${ext_ip} -p udp -m udp --sport 53 -j ACCEPT
 PreUp = iptables -A INPUT -i %i -p udp -m udp --dport 5353 -j ACCEPT
 PreUp = ip6tables -A INPUT -i %i -p udp -m udp --dport 5353 -j ACCEPT
