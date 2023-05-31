@@ -266,6 +266,11 @@ case "${t}" in
                             cv6="`echo \"${ctrl}\" | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
                             cv6ld=`expr $(printf "%d" "0x${cv6##*:}" 2>/dev/null) + 1`
 
+                            ext_if="`ip -n \"ns${wgi}\" -4 r get 1.1.1.1 | head -1 | cut -d \  -f 5`"
+                            ip netns exec "ns${wgi}" iptables -A INPUT -i "${ext_if}" -p udp --dport 500 -j ACCEPT
+                            ip netns exec "ns${wgi}" iptables -A INPUT -i "${ext_if}" -p udp --dport 1701 -j ACCEPT
+                            ip netns exec "ns${wgi}" iptables -A INPUT -i "${ext_if}" -p udp --dport 4500 -j ACCEPT
+
                             ip netns exec "ns${wgi}" ip6tables -A INPUT -s "${cv6}" -d "${cv6%:[0-9a-f]*}:`printf \"%x\" \"$cv6ld\"`" -p tcp -m tcp -m multiport --sports 80,443 -m comment --comment " ${av6}/" -j ACCEPT
                             ip netns exec "ns${wgi}" iptables -t nat -A PREROUTING -i l2tp+ -d 100.127.0.1 -p tcp -m tcp --dport 80 -j REDIRECT --to-ports 8080
                             ip netns exec "ns${wgi}" iptables -t nat -A PREROUTING -i l2tp+ -d 100.127.0.1 -p tcp -m tcp --dport 443 -j REDIRECT --to-ports 8443
@@ -285,6 +290,11 @@ case "${t}" in
                         ip netns exec "ns${wgi}" iptables -t nat -D PREROUTING -i l2tp+ -d 100.127.0.1 -p tcp -m tcp --dport 443 -j REDIRECT --to-ports 8443
                         /usr/bin/systemctl stop ipsec-keydesk-proxy-80@"${wgi}:*"
                         /usr/bin/systemctl stop ipsec-keydesk-proxy-443@"${wgi}:*"
+
+                        ext_if="`ip -n \"ns${wgi}\" -4 r get 1.1.1.1 | head -1 | cut -d \  -f 5`"
+                        ip netns exec "ns${wgi}" iptables -D INPUT -i "${ext_if}" -p udp --dport 500 -j ACCEPT
+                        ip netns exec "ns${wgi}" iptables -D INPUT -i "${ext_if}" -p udp --dport 1701 -j ACCEPT
+                        ip netns exec "ns${wgi}" iptables -D INPUT -i "${ext_if}" -p udp --dport 4500 -j ACCEPT
 
                         echo > /etc/dnsmasq.hosts."${wgi}:5353"
                         echo > /etc/dnsmasq.hosts."${wgi}:5354"

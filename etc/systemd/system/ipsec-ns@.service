@@ -26,9 +26,6 @@ ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /usr/libexec/ips
 ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /usr/sbin/ipsec --checknss"
 # Check for nflog setup
 ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /usr/sbin/ipsec --checknflog"
-# UDP firewall pass
-ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -A INPUT -i ${ifwg%%:*} -p udp --dport 500 -j ACCEPT || true"
-ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -A INPUT -i ${ifwg%%:*} -p udp --dport 4500 -j ACCEPT || true"
 # Start the actual IKE daemon
 ExecStart=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /usr/libexec/ipsec/pluto --leak-detective --config /etc/ipsec.conf.${ifwg##*:} --secretsfile /etc/ipsec.secrets.${ifwg##*:} --nofork"
 # Enable for portexcludes support
@@ -37,9 +34,6 @@ ExecStop=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /usr/libexec/ipsec/w
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /sbin/ip xfrm policy flush"
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /sbin/ip xfrm state flush"
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /usr/sbin/ipsec --stopnflog"
-# UDP firewall drop
-ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -D INPUT -i ${ifwg%%:*} -p udp --dport 500 -j ACCEPT || true"
-ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -D INPUT -i ${ifwg%%:*} -p udp --dport 4500 -j ACCEPT || true"
 ExecReload=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} /usr/libexec/ipsec/whack --listen"
 
 [Install]
