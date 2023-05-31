@@ -427,6 +427,10 @@ case "${t}" in
                     echo "{\"code\": \"138\", \"error\": \"no interface found for external-ip\"}"
                     exit 0
                 fi
+                if [ -z "${wg_port}" -o "${wg_port}" -le 1024 -o "${wg_port}" -ge 65535 ]; then
+                    echo "{\"code\": \"150\", \"error\": \"Wireguard port is not in range 1025-65534\"}"
+                    exit 0
+                fi
 
                 echo "EXT_DEV=${ext_if}" > "/etc/wg-quick-ns.env.${wgi}"
                 echo "EXT_IP=${ext_ip_nm%%/[0-9]*}" >> "/etc/wg-quick-ns.env.${wgi}"
