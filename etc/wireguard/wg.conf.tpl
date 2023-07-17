@@ -44,19 +44,15 @@ PreUp = ip6tables -I FORWARD 1 -m state --state INVALID -j DROP
 PreUp = ip6tables -I FORWARD 2 -p tcp -m state --state NEW -m set ! --match-set ScannedPorts6 src,dst,dst -m hashlimit --hashlimit-above 10/minute --hashlimit-burst 10 --hashlimit-mode srcip,dstip --hashlimit-name portscan --hashlimit-htable-expire 10000 -j SET --add-set PortScanners6 src --exist
 PreUp = ip6tables -I FORWARD 3 -p tcp -m state --state NEW -j SET --add-set ScannedPorts6 src,dst,dst
 PreUp = ip6tables -I FORWARD 4 -m state --state NEW -m set --match-set PortScanners6 src -j DROP
-# Torrent connection blocking (forward rule should go before portscan rules)
-PreUp = iptables -t mangle -A PREROUTING -j CONNMARK --restore-mark
-PreUp = iptables -t mangle -A PREROUTING -m mark ! --mark 0 -j ACCEPT
-PreUp = iptables -t mangle -A PREROUTING -m mark --mark 0 -m ipp2p --edk -j MARK --set-mark 1
-PreUp = iptables -t mangle -A PREROUTING -m mark --mark 0 -m ipp2p --bit -j MARK --set-mark 1
-PreUp = iptables -t mangle -A PREROUTING -j CONNMARK --save-mark
-PreUp = iptables -I FORWARD 1 -m mark --mark 1 -j REJECT --reject-with icmp-admin-prohibited
-PreUp = ip6tables -t mangle -A PREROUTING -j CONNMARK --restore-mark
-PreUp = ip6tables -t mangle -A PREROUTING -m mark ! --mark 0 -j ACCEPT
-PreUp = ip6tables -t mangle -A PREROUTING -m mark --mark 0 -m ipp2p --edk -j MARK --set-mark 1
-PreUp = ip6tables -t mangle -A PREROUTING -m mark --mark 0 -m ipp2p --bit -j MARK --set-mark 1
-PreUp = ip6tables -t mangle -A PREROUTING -j CONNMARK --save-mark
-PreUp = ip6tables -I FORWARD 1 -m mark --mark 1 -j REJECT --reject-with icmp6-adm-prohibited
+# Torrent connection blocking
+PreUp = ipset create Torrents4 hash:ip timeout 60
+PreUp = iptables -I FORWARD 1 -i %i -m ipp2p --bit -j SET --add-set Torrents4 src --exist
+PreUp = iptables -I FORWARD 2 -p udp -m set --match-set Torrents4 src -j DROP
+PreUp = iptables -I FORWARD 3 -p tcp -m set --match-set Torrents4 src -m multiport ! --dports 80,443,853 -j REJECT --reject-with icmp-admin-prohibited
+PreUp = ipset create Torrents6 hash:ip family inet6 timeout 60
+PreUp = ip6tables -I FORWARD 1 -i %i -m ipp2p --bit -j SET --add-set Torrents6 src --exist
+PreUp = ip6tables -I FORWARD 2 -p udp -m set --match-set Torrents6 src -j DROP
+PreUp = ip6tables -I FORWARD 3 -p tcp -m set --match-set Torrents6 src -m multiport ! --dports 80,443,853 -j REJECT --reject-with icmp6-adm-prohibited
 # Specific port ban
 PreUp = iptables -I FORWARD 1 -p tcp -m multiport --dports 25,137,139 -j DROP
 PreUp = iptables -I FORWARD 2 -p udp -m multiport --dports 137,138 -j DROP
