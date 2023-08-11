@@ -1,0 +1,41 @@
+[Unit]
+Description=OpenVPN namespaced %i
+After=network.target
+
+[Service]
+EnvironmentFile=/etc/wg-quick-ns.env.%i
+
+ExecStartPre=/bin/bash -c "/usr/bin/systemctl start cloak-ns@%i"
+ExecStartPre=/bin/bash -c "/usr/bin/systemctl start dnsmasq-ns@%i:5355"
+
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -i lo -p tcp --dport 1194 -j ACCEPT || true"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -i lo -p tcp --sport 1194 -j ACCEPT || true"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -d ${EXT_IP} -p udp -m udp --sport 53 -j ACCEPT || true"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -i tun+ -p udp --dport 5355 -j ACCEPT || true"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A FORWARD -i ${EXT_DEV} -o tun+ -j ACCEPT || true"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A FORWARD -o ${EXT_DEV} -i tun+ -j ACCEPT || true"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -A PREROUTING -i tun+ -p udp -m udp --dport 53 -j REDIRECT --to-ports 5355 || true"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -A POSTROUTING -s 100.128.0.0/16 -m hashlimit --hashlimit-name logv4 --hashlimit-mode srcip,dstip,dstport --hashlimit-upto 1/minute --hashlimit-burst 1 --hashlimit-htable-expire 60000 -j LOG --log-prefix \"[LEA-DIR]: \" || true"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -A POSTROUTING -s 100.128.0.0/16 -j SNAT --to ${EXT_IP} || true"
+
+ExecStart=/bin/bash -c "/usr/bin/ip netns exec ns%i /usr/sbin/openvpn --config /opt/openvpn-%i/server.conf"
+
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -D POSTROUTING -s 100.128.0.0/16 -j SNAT --to ${EXT_IP} || true"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -D POSTROUTING -s 100.128.0.0/16 -m hashlimit --hashlimit-name logv4 --hashlimit-mode srcip,dstip,dstport --hashlimit-upto 1/minute --hashlimit-burst 1 --hashlimit-htable-expire 60000 -j LOG --log-prefix \"[LEA-DIR]: \" || true"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -D PREROUTING -i tun+ -p udp -m udp --dport 53 -j REDIRECT --to-ports 5355 || true"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D FORWARD -i ${EXT_DEV} -o tun+ -j ACCEPT || true"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D FORWARD -o ${EXT_DEV} -i tun+ -j ACCEPT || true"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D INPUT -i tun+ -p udp --dport 5355 -j ACCEPT || true"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D INPUT -d ${EXT_IP} -p udp -m udp --sport 53 -j ACCEPT || true"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D INPUT -i lo -p tcp --sport 1194 -j ACCEPT || true"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D INPUT -i lo -p tcp --dport 1194 -j ACCEPT || true"
+
+ExecStopPost=/bin/bash -c "/usr/bin/systemctl stop dnsmasq-ns@%i:5355"
+ExecStopPost=/bin/bash -c "/usr/bin/systemctl stop cloak-ns@%i"
+
+StandardOutput=null
+Type=simple
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

@@ -184,6 +184,10 @@ case "${t}" in
                                             nacl_d "${l2tp_pwd}" "L2TP user password" 16 64
                                             l2tp_pwd=`echo "${nacl_d_ret}" | base64 -d | tr -d "\042\047\140"`
                                     ;;
+                                    "--openvpn-client-csr="* )
+                                            v=`ud_b64 "${v}"`
+                                            openvpn_csr="${v#*=}"
+                                    ;;
                             esac
                     done
                 else
@@ -255,6 +259,7 @@ case "${t}" in
                             /usr/bin/systemctl reload dnsmasq-ns@"${wgi}:5353"
                         fi
                     fi
+                    cv6=
                     if [ ${ec} -eq 0 -a ! -z "${l2tp_usr}" -a ! -z "${l2tp_pwd}" ]; then
                         if [ ! -z "${ctrl}" ]; then
                             echo "\"${l2tp_usr}\" * \"${l2tp_pwd}\" ip_pool_adm 10240/10240 #${f[0]}" >> /etc/accel-ppp.chap-secrets."${wgi}"
@@ -274,22 +279,64 @@ case "${t}" in
                             ip netns exec "ns${wgi}" ip6tables -A INPUT -s "${cv6}" -d "${cv6%:[0-9a-f]*}:`printf \"%x\" \"$cv6ld\"`" -p tcp -m tcp -m multiport --sports 80,443 -m comment --comment " ${av6}/" -j ACCEPT
                             ip netns exec "ns${wgi}" iptables -t nat -A PREROUTING -i l2tp+ -d 100.127.0.1 -p tcp -m tcp --dport 80 -j REDIRECT --to-ports 8080
                             ip netns exec "ns${wgi}" iptables -t nat -A PREROUTING -i l2tp+ -d 100.127.0.1 -p tcp -m tcp --dport 443 -j REDIRECT --to-ports 8443
-                            /usr/bin/systemctl start ipsec-keydesk-proxy-80@"${wgi}:${cv6}"
-                            /usr/bin/systemctl start ipsec-keydesk-proxy-443@"${wgi}:${cv6}"
                         else
                             echo "\"${l2tp_usr}\" * \"${l2tp_pwd}\" * 10240/10240 #${f[0]}" >> /etc/accel-ppp.chap-secrets."${wgi}"
                         fi
                     fi
+                    openvpn_cn=
+                    while [ ${ec} -eq 0 -a ! -z "${openvpn_csr}" ]; do
+                        echo -n "${openvpn_csr}" | base64 -d | gunzip > /opt/openvpn-"${wgi}"/pki/reqs/"${f[0]//\//_}".req
+                        openvpn_cn="`cat /opt/openvpn-"${wgi}"/pki/reqs/"${f[0]//\//_}".req | openssl req -noout -subject -in - | fgrep subject=CN | cut -d ' ' -f 3`"
+                        [ -z "$openvpn_cn" ] && break
+                        cd /opt/openvpn-"${wgi}"
+                        /usr/share/easy-rsa/easyrsa --batch --days=3650 sign-req client "${f[0]//\//_}" >/dev/null
+
+                        if [ ! -z "${ctrl}" ]; then
+                            for i in {2..254}; do
+                                fgrep -qr " 100.128.255.$i " /opt/openvpn-"${wgi}"/ccd/ \
+                                    || echo -e "#${f[0]}\nifconfig-push 100.128.255.2 255.255.0.0" > /opt/openvpn-"${wgi}"/ccd/"${openvpn_cn}" \
+                                    && break
+                            done
+
+                            echo "100.128.0.1 vpn.works" > /etc/dnsmasq.hosts."${wgi}:5355"
+                            /usr/bin/systemctl reload dnsmasq-ns@"${wgi}:5355"
+
+                            av6="`echo \"${addrs}\" | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
+                            cv6="`echo \"${ctrl}\" | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
+                            cv6ld=`expr $(printf "%d" "0x${cv6##*:}" 2>/dev/null) + 1`
+
+                            ip netns exec "ns${wgi}" ip6tables -A INPUT -s "${cv6}" -d "${cv6%:[0-9a-f]*}:`printf \"%x\" \"$cv6ld\"`" -p tcp -m tcp -m multiport --sports 80,443 -m comment --comment " ${av6}/" -j ACCEPT
+                            ip netns exec "ns${wgi}" iptables -t nat -A PREROUTING -i tun+ -d 100.128.0.1 -p tcp -m tcp --dport 80 -j REDIRECT --to-ports 8080
+                            ip netns exec "ns${wgi}" iptables -t nat -A PREROUTING -i tun+ -d 100.128.0.1 -p tcp -m tcp --dport 443 -j REDIRECT --to-ports 8443
+                            ip netns exec "ns${wgi}" iptables -A INPUT -i tun+ -d 100.128.0.1 -s 100.128.255.0/24 -p tcp -m multiport --dports 8080,8443 -j ACCEPT
+                        else
+                            touch /opt/openvpn-"${wgi}"/ccd/"${openvpn_cn}"
+                        fi
+                        break
+                    done
+                    if [ ! -z "${cv6}" ]; then
+                        /usr/bin/systemctl start ipsec-keydesk-proxy-80@"${wgi}:${cv6}"
+                        /usr/bin/systemctl start ipsec-keydesk-proxy-443@"${wgi}:${cv6}"
+                    fi
                     set_unset_bandwidth_limit "${wgi}" "${f[0]}" "10240" "10240"
                     [ ${ec} -eq 0 ] && replay_log "${t}" "${f[0]}" "${wgi}" "${b}"
-                    echo "{\"code\": \"${ec}\"}"
+                    if [ ! -z "$openvpn_cn" ]; then
+                        echo "{\"code\": \"${ec}\", \"openvpn-client-certificate\": \""`fgrep -A 1000 'BEGIN CERTIFICATE' /opt/openvpn-"${wgi}"/pki/issued/${f[0]//\//_}.crt | sed 's/\"/\\\\"/g;s/$/\\\\n/g' | tr -d '\n'`"\"}"
+                    else
+                        echo "{\"code\": \"${ec}\"}"
+                    fi
                 elif [ "${t}" == "/?peer_del" ]; then
                     av6="`ip netns exec \"ns${wgi}\" wg show ${wgi} allowed-ips | fgrep \"${f[0]}\" | cut -d $'\t' -f 2 | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
                     if [ ! -z "${av6}" -a ! -z "`ip netns exec \"ns${wgi}\" ip6tables-save | fgrep \" ${av6}/\"`" ]; then
-                        ip netns exec "ns${wgi}" iptables -t nat -D PREROUTING -i l2tp+ -d 100.127.0.1 -p tcp -m tcp --dport 80 -j REDIRECT --to-ports 8080
-                        ip netns exec "ns${wgi}" iptables -t nat -D PREROUTING -i l2tp+ -d 100.127.0.1 -p tcp -m tcp --dport 443 -j REDIRECT --to-ports 8443
                         /usr/bin/systemctl stop ipsec-keydesk-proxy-80@"${wgi}:*"
                         /usr/bin/systemctl stop ipsec-keydesk-proxy-443@"${wgi}:*"
+
+                        ip netns exec "ns${wgi}" iptables -D INPUT -i tun+ -d 100.128.0.1 -s 100.128.255.0/24 -p tcp -m multiport --dports 8080,8443 -j ACCEPT
+                        ip netns exec "ns${wgi}" iptables -t nat -D PREROUTING -i tun+ -d 100.128.0.1 -p tcp -m tcp --dport 80 -j REDIRECT --to-ports 8080
+                        ip netns exec "ns${wgi}" iptables -t nat -D PREROUTING -i tun+ -d 100.128.0.1 -p tcp -m tcp --dport 443 -j REDIRECT --to-ports 8443
+
+                        ip netns exec "ns${wgi}" iptables -t nat -D PREROUTING -i l2tp+ -d 100.127.0.1 -p tcp -m tcp --dport 80 -j REDIRECT --to-ports 8080
+                        ip netns exec "ns${wgi}" iptables -t nat -D PREROUTING -i l2tp+ -d 100.127.0.1 -p tcp -m tcp --dport 443 -j REDIRECT --to-ports 8443
 
                         ext_if="`ip -n \"ns${wgi}\" -4 r get 1.1.1.1 | head -1 | cut -d \  -f 5`"
                         ip netns exec "ns${wgi}" iptables -D INPUT -i "${ext_if}" -p udp --dport 500 -j ACCEPT
@@ -298,8 +345,10 @@ case "${t}" in
 
                         echo > /etc/dnsmasq.hosts."${wgi}:5353"
                         echo > /etc/dnsmasq.hosts."${wgi}:5354"
+                        echo > /etc/dnsmasq.hosts."${wgi}:5355"
                         /usr/bin/systemctl reload dnsmasq-ns@"${wgi}:5353"
                         /usr/bin/systemctl reload dnsmasq-ns@"${wgi}:5354"
+                        /usr/bin/systemctl reload dnsmasq-ns@"${wgi}:5355"
 
                         ip netns exec "ns${wgi}" ip6tables-save | fgrep " ${av6}/" | sed "s/^-A /-D /" | sed "s/-D POSTROUTING/-t nat -D POSTROUTING/" | xargs -L 1 ip netns exec "ns${wgi}" ip6tables
                         c2v6="`ip netns exec \"ns${wgi}\" ip -6 -o a | egrep ' wg[0-9]*veth1 ' | fgrep ' global ' | cut -d \  -f 7 | cut -d \/ -f 1`"
@@ -309,6 +358,8 @@ case "${t}" in
                         ip link del "${wgi}veth0"
                     fi
                     set_unset_bandwidth_limit "${wgi}" "${f[0]}"
+
+                    fgrep -r "#${f[0]}" /opt/openvpn-"${wgi}"/ccd/ | cut -d \: -f 1 | xargs rm -f
 
                     # sed is not used due to complicated special symbol escaping
                     fgrep -v " #${f[0]}" /etc/accel-ppp.chap-secrets."${wgi}" > /etc/accel-ppp.chap-secrets."${wgi}".tmp
@@ -394,6 +445,24 @@ case "${t}" in
                                         wg_port="${v#*=}"
                                         wg_port="${wg_port%%[^0-9]*}"
                                 ;;
+                                "--cloak-bypass-uid="* )
+                                        v=`ud_b64 "${v}"`
+                                        cloak_b_uid=`echo "${v#*=}" | tr -d "\042\047\140" | head -c 32`
+                                ;;
+                                "--cloak-domain="* )
+                                        v=`ud_b64 "${v}" "\."`
+                                        cloak_domain=`echo "${v#*=}" | grep -E "^[a-zA-Z0-9]+([-.]?[a-zA-Z0-9]+)*\.[a-zA-Z]+$"`
+                                ;;
+                                "--openvpn-ca-crt="* )
+                                        v=`ud_b64 "${v}"`
+                                        openvpn_ca_crt="${v#*=}"
+                                ;;
+                                "--openvpn-ca-key="* )
+                                        v=`ud_b64 "${v}"`
+                                        openvpn_ca_key="${v#*=}"
+                                        nacl_d "${openvpn_ca_key}" "OpenVPN CA key"
+                                        openvpn_ca_key="${nacl_d_ret}"
+                                ;;
                         esac
                 done
                 if [ -z "${addrs}" ]; then
@@ -429,6 +498,17 @@ case "${t}" in
                 fi
                 if [ -z "${wg_port}" -o "${wg_port}" -le 1024 -o "${wg_port}" -ge 65535 ]; then
                     echo "{\"code\": \"150\", \"error\": \"Wireguard port is not in range 1025-65534\"}"
+                fi
+                if [ -z "${cloak_b_uid}" ]; then
+                    echo "{\"code\": \"151\", \"error\": \"mandatory parameter cloak-bypass-uid is not set\"}"
+                    exit 0
+                fi
+                if [ -z "${openvpn_ca_key}" ]; then
+                    echo "{\"code\": \"152\", \"error\": \"mandatory parameter openvpn-ca-key is not set\"}"
+                    exit 0
+                fi
+                if [ -z "${openvpn_ca_crt}" ]; then
+                    echo "{\"code\": \"153\", \"error\": \"mandatory parameter openvpn-ca-key is not set\"}"
                     exit 0
                 fi
 
@@ -462,6 +542,29 @@ case "${t}" in
 
                 echo > /etc/dnsmasq.hosts."${wgi}:5353"
                 echo > /etc/dnsmasq.hosts."${wgi}:5354"
+                echo > /etc/dnsmasq.hosts."${wgi}:5355"
+
+                mkdir -p /opt/openvpn-"${wgi}"/ccd
+                cp -f /etc/openvpn/server.conf.tpl /opt/openvpn-"${wgi}"/server.conf
+                sed -i "s/\${wgi}/${wgi}/g" /opt/openvpn-"${wgi}"/server.conf
+
+                cd /opt/openvpn-"${wgi}"
+                /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 init-pki >/dev/null
+                /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 build-ca nopass >/dev/null
+                echo -n "${openvpn_ca_key}" | base64 -d | gunzip > /opt/openvpn-"${wgi}"/pki/private/ca.key
+                chmod 600 /opt/openvpn-"${wgi}"/pki/private/ca.key
+                echo -n "${openvpn_ca_crt}" | base64 -d | gunzip > /opt/openvpn-"${wgi}"/pki/ca.crt
+                EASYRSA_REQ_CN=server /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 gen-req server nopass >/dev/null
+                /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 --days=3650 sign-req server server >/dev/null
+                touch /opt/openvpn-"${wgi}"/pki/index.txt
+                /usr/share/easy-rsa/easyrsa --batch gen-crl >/dev/null
+
+                mkdir -p /opt/cloak-"${wgi}"
+                cp -f /etc/cloak/ck-server.json.tpl /opt/cloak-"${wgi}"/ck-server.json
+                sed -i "s#\${cloak_bypass_uid}#${cloak_b_uid}#g" /opt/cloak-"${wgi}"/ck-server.json
+                sed -i "s#\${cloak_domain}#${cloak_domain:-yandex.com}#g" /opt/cloak-"${wgi}"/ck-server.json
+                sed -i "s#\${cloak_private_key}#${f[0]}#g" /opt/cloak-"${wgi}"/ck-server.json
+                sed -i "s/\${ext_ip}/${ext_ip_nm%%/[0-9]*}/g" /opt/cloak-"${wgi}"/ck-server.json
 
                 systemctl start wg-quick-ns@"${wgi}"
 
@@ -507,9 +610,12 @@ case "${t}" in
                     rm -f /etc/wireguard/"${wgi}".{conf,replay} 2>/dev/null
                     rm -f /etc/dnsmasq.hosts."${wgi}:5353" 2>/dev/null
                     rm -f /etc/dnsmasq.hosts."${wgi}:5354" 2>/dev/null
+                    rm -f /etc/dnsmasq.hosts."${wgi}:5355" 2>/dev/null
 
                     rm -f /etc/ipsec.secrets."${wgi}" /etc/ipsec.conf."${wgi}" /etc/accel-ppp.chap-secrets."${wgi}" /etc/accel-ppp.conf."${wgi}" 2>/dev/null
                     rm -f "/etc/wg-quick-ns.env.${wgi}" 2>/dev/null
+
+                    rm -rf /opt/openvpn-"${wgi}" /opt/cloak-"${wgi}"
 
                     i=0
                     while [ -z "`ip -4 -o a | fgrep \" ${ext_if} \"`" ]; do

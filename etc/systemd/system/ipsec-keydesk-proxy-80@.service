@@ -7,7 +7,7 @@ SyslogIdentifier=socat-ipsec-keydesk-proxy-80
 
 Environment="wgip=%i"
 
-ExecStart=/bin/bash -c "echo '%i' | cut -d : -f 1 | xargs -I {} /usr/bin/ip netns exec ns{} /usr/bin/socat -d TCP4-LISTEN:8080,su=nobody,fork,range=100.127.255.0/24,reuseaddr TCP6:[${wgip#*:}]:80"
+ExecStart=/bin/bash -c "echo '%i' | cut -d : -f 1 | xargs -I {} /usr/bin/ip netns exec ns{} /usr/bin/socat -d TCP4-LISTEN:8080,su=nobody,fork,range=100.0.0.0/8,reuseaddr TCP6:[${wgip#*:}]:80"
 Restart=always
 
 [Install]

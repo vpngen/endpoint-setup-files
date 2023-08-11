@@ -46,11 +46,11 @@ PreUp = ip6tables -I FORWARD 3 -p tcp -m state --state NEW -j SET --add-set Scan
 PreUp = ip6tables -I FORWARD 4 -m state --state NEW -m set --match-set PortScanners6 src -j DROP
 # Torrent connection blocking
 PreUp = ipset create Torrents4 hash:ip timeout 60
-PreUp = iptables -I FORWARD 1 -i %i -m ipp2p --bit -j SET --add-set Torrents4 src --exist
+PreUp = iptables -I FORWARD 1 ! -i ${ext_if} -m ipp2p --bit -j SET --add-set Torrents4 src --exist
 PreUp = iptables -I FORWARD 2 -p udp -m set --match-set Torrents4 src -j DROP
 PreUp = iptables -I FORWARD 3 -p tcp -m set --match-set Torrents4 src -m multiport ! --dports 80,443,853 -j REJECT --reject-with icmp-admin-prohibited
 PreUp = ipset create Torrents6 hash:ip family inet6 timeout 60
-PreUp = ip6tables -I FORWARD 1 -i %i -m ipp2p --bit -j SET --add-set Torrents6 src --exist
+PreUp = ip6tables -I FORWARD 1 ! -i ${ext_if} -m ipp2p --bit -j SET --add-set Torrents6 src --exist
 PreUp = ip6tables -I FORWARD 2 -p udp -m set --match-set Torrents6 src -j DROP
 PreUp = ip6tables -I FORWARD 3 -p tcp -m set --match-set Torrents6 src -m multiport ! --dports 80,443,853 -j REJECT --reject-with icmp6-adm-prohibited
 # Specific port ban
