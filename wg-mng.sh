@@ -289,7 +289,7 @@ case "${t}" in
                         openvpn_cn="`cat /opt/openvpn-"${wgi}"/pki/reqs/"${f[0]//\//_}".req | openssl req -noout -subject -in - | fgrep subject=CN | cut -d ' ' -f 3`"
                         [ -z "$openvpn_cn" ] && break
                         cd /opt/openvpn-"${wgi}"
-                        /usr/share/easy-rsa/easyrsa --batch --days=3650 sign-req client "${f[0]//\//_}" >/dev/null
+                        /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 --days=3650 sign-req client "${f[0]//\//_}" >/dev/null 2>&1
 
                         if [ ! -z "${ctrl}" ]; then
                             for i in {2..254}; do
@@ -550,12 +550,12 @@ case "${t}" in
 
                 cd /opt/openvpn-"${wgi}"
                 /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 init-pki >/dev/null
-                /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 build-ca nopass >/dev/null
+                /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 build-ca nopass >/dev/null 2>&1
                 echo -n "${openvpn_ca_key}" | base64 -d | gunzip > /opt/openvpn-"${wgi}"/pki/private/ca.key
                 chmod 600 /opt/openvpn-"${wgi}"/pki/private/ca.key
                 echo -n "${openvpn_ca_crt}" | base64 -d | gunzip > /opt/openvpn-"${wgi}"/pki/ca.crt
-                EASYRSA_REQ_CN=server /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 gen-req server nopass >/dev/null
-                /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 --days=3650 sign-req server server >/dev/null
+                EASYRSA_REQ_CN=server /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 gen-req server nopass >/dev/null 2>&1
+                /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 --days=3650 sign-req server server >/dev/null 2>&1
                 touch /opt/openvpn-"${wgi}"/pki/index.txt
                 /usr/share/easy-rsa/easyrsa --batch gen-crl >/dev/null
 
