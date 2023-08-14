@@ -550,14 +550,14 @@ case "${t}" in
 
                 cd /opt/openvpn-"${wgi}"
                 /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 init-pki >/dev/null
-                /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 build-ca nopass >/dev/null 2>&1
+                /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 --days=3650 build-ca nopass >/dev/null 2>&1
                 echo -n "${openvpn_ca_key}" | base64 -d | gunzip > /opt/openvpn-"${wgi}"/pki/private/ca.key
                 chmod 600 /opt/openvpn-"${wgi}"/pki/private/ca.key
                 echo -n "${openvpn_ca_crt}" | base64 -d | gunzip > /opt/openvpn-"${wgi}"/pki/ca.crt
                 EASYRSA_REQ_CN=server /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 gen-req server nopass >/dev/null 2>&1
                 /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 --days=3650 sign-req server server >/dev/null 2>&1
                 touch /opt/openvpn-"${wgi}"/pki/index.txt
-                /usr/share/easy-rsa/easyrsa --batch gen-crl >/dev/null
+                /usr/share/easy-rsa/easyrsa --batch --days=3650 gen-crl >/dev/null
 
                 mkdir -p /opt/cloak-"${wgi}"
                 cp -f /etc/cloak/ck-server.json.tpl /opt/cloak-"${wgi}"/ck-server.json
