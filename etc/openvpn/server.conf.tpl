@@ -19,7 +19,7 @@ syslog
 ca /opt/openvpn-${wgi}/pki/ca.crt
 cert /opt/openvpn-${wgi}/pki/issued/server.crt
 key /opt/openvpn-${wgi}/pki/private/server.key
-crl-verify /opt/openvpn-${wgi}/pki/crl.pem
+crl-verify /opt/openvpn-${wgi}/crl.pem
 dh /etc/openvpn/dh.pem
 client-config-dir /opt/openvpn-${wgi}/ccd
 ccd-exclusive

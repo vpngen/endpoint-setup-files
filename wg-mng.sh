@@ -558,6 +558,8 @@ case "${t}" in
                 /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 --days=3650 sign-req server server >/dev/null 2>&1
                 touch /opt/openvpn-"${wgi}"/pki/index.txt
                 /usr/share/easy-rsa/easyrsa --batch --days=3650 gen-crl >/dev/null
+                cp -f /opt/openvpn-"${wgi}"/pki/crl.pem /opt/openvpn-"${wgi}"/crl.pem
+                chmod 644 /opt/openvpn-"${wgi}"/crl.pem
 
                 mkdir -p /opt/cloak-"${wgi}"
                 cp -f /etc/cloak/ck-server.json.tpl /opt/cloak-"${wgi}"/ck-server.json
