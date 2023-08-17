@@ -49,12 +49,13 @@ case "$script_type" in
     client-connect)
         ns="`dirname \"$config\" | awk -F \- '{print $NF}'`"
         echo "$ifconfig_pool_remote_ip" > /opt/openvpn-"$ns"/tc/"$common_name".active_ip
+        echo "$dev" > /opt/openvpn-"$ns"/tc/"$common_name".active_tun
         openvpn_set_unset_bandwidth_limit "$ns" "$common_name" "set"
     ;;
     client-disconnect)
         ns="`dirname \"$config\" | awk -F \- '{print $NF}'`"
         openvpn_set_unset_bandwidth_limit "$ns" "$common_name" "unset"
-        rm -f /opt/openvpn-"$ns"/tc/"$common_name".active_ip 2>/dev/null
+        rm -f /opt/openvpn-"$ns"/tc/"$common_name".active_ip /opt/openvpn-"$ns"/tc/"$common_name".active_tun 2>/dev/null
     ;;
     *)
         case "$1" in
@@ -63,7 +64,7 @@ case "$script_type" in
                 [ -z "$3" ] && echo "$0 $1 $2: missing argument: client id" >&2 && exit 1
                 cn="`fgrep -rH \"#$3\" /opt/openvpn-\"$2\"/ccd/ | cut -d \: -f 1 | awk -F \/ '{print $NF}'`"
                 [ ! -z "$4" -a ! -z "$5" ] && echo "$4/$5" > /opt/openvpn-"$2"/tc/"$cn" || rm -f /opt/openvpn-"$2"/tc/"$cn" 2>/dev/null
-                openvpn_set_unset_bandwidth_limit "$2" "$cn" "set"
+                [ -f /opt/openvpn-"$2"/tc/"$cn".active_tun ] && dev=`cat /opt/openvpn-"$2"/tc/"$cn".active_tun` openvpn_set_unset_bandwidth_limit "$2" "$cn" "set"
             ;;
             *)
                 echo "$0: unknown operation: $1" >&2
