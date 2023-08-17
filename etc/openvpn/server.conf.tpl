@@ -23,3 +23,8 @@ crl-verify /opt/openvpn-${wgi}/crl.pem
 dh /etc/openvpn/dh.pem
 client-config-dir /opt/openvpn-${wgi}/ccd
 ccd-exclusive
+script-security 2
+up /etc/openvpn/openvpn-tc.sh
+down /etc/openvpn/openvpn-tc.sh
+client-connect /etc/openvpn/openvpn-tc.sh
+client-disconnect /etc/openvpn/openvpn-tc.sh

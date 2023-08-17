@@ -33,6 +33,10 @@ done
 touch "${spinlock}" 2>/dev/null
 
 function set_unset_bandwidth_limit {
+    [ -x /etc/openvpn/openvpn-tc.sh -a -f /opt/openvpn-"$1"/hosts ] \
+        && unshare --mount /bin/bash -c "mount --bind /opt/openvpn-\"$1\"/hosts /etc/hosts && \
+            ip netns exec \"ns$1\" su nobody -s /bin/bash /bin/bash -c \"/etc/openvpn/openvpn-tc.sh update $1 $2 $3 $4\""
+
     ip="`ip netns exec \"ns$1\" wg show \"$1\" allowed-ips | fgrep \"$2\" | cut -d $'\t' -f 2 | sed 's/^[^0-9]*\([0-9]*\.[0-9]*\.[0-9]*\.[0-9]*\).*$/\1/'`"
 
     ip_byte3=`echo "$ip" | cut -d . -f 3`
@@ -294,7 +298,7 @@ case "${t}" in
                         if [ ! -z "${ctrl}" ]; then
                             for i in {2..254}; do
                                 fgrep -qr " 100.128.255.$i " /opt/openvpn-"${wgi}"/ccd/ \
-                                    || echo -e "#${f[0]}\nifconfig-push 100.128.255.2 255.255.0.0" > /opt/openvpn-"${wgi}"/ccd/"${openvpn_cn}" \
+                                    || echo -e "#${f[0]}\nifconfig-push 100.128.255.$i 255.255.0.0" > /opt/openvpn-"${wgi}"/ccd/"${openvpn_cn}" \
                                     && break
                             done
 
@@ -310,7 +314,7 @@ case "${t}" in
                             ip netns exec "ns${wgi}" iptables -t nat -A PREROUTING -i tun+ -d 100.128.0.1 -p tcp -m tcp --dport 443 -j REDIRECT --to-ports 8443
                             ip netns exec "ns${wgi}" iptables -A INPUT -i tun+ -d 100.128.0.1 -s 100.128.255.0/24 -p tcp -m multiport --dports 8080,8443 -j ACCEPT
                         else
-                            touch /opt/openvpn-"${wgi}"/ccd/"${openvpn_cn}"
+                            echo "#${f[0]}" > /opt/openvpn-"${wgi}"/ccd/"${openvpn_cn}"
                         fi
                         break
                     done
@@ -544,7 +548,8 @@ case "${t}" in
                 echo > /etc/dnsmasq.hosts."${wgi}:5354"
                 echo > /etc/dnsmasq.hosts."${wgi}:5355"
 
-                mkdir -p /opt/openvpn-"${wgi}"/ccd
+                mkdir -p /opt/openvpn-"${wgi}"/ccd /opt/openvpn-"${wgi}"/tc
+                chmod 1777 /opt/openvpn-"${wgi}"/tc
                 cp -f /etc/openvpn/server.conf.tpl /opt/openvpn-"${wgi}"/server.conf
                 sed -i "s/\${wgi}/${wgi}/g" /opt/openvpn-"${wgi}"/server.conf
 

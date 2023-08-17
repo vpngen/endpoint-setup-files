@@ -1,0 +1,6 @@
+nobody ALL = NOPASSWD: /usr/sbin/tc qdisc add dev tun[0-9] *
+nobody ALL = NOPASSWD: /usr/sbin/tc qdisc del dev tun[0-9] *
+nobody ALL = NOPASSWD: /usr/sbin/tc filter add dev tun[0-9] *
+nobody ALL = NOPASSWD: /usr/sbin/tc filter del dev tun[0-9] *
+nobody ALL = NOPASSWD: /usr/sbin/tc class add dev tun[0-9] *
+nobody ALL = NOPASSWD: /usr/sbin/tc class del dev tun[0-9] *
