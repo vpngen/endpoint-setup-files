@@ -63,7 +63,7 @@ case "$script_type" in
                 [ -z "$2" ] && echo "$0 $1: missing argument: namespace id" >&2 && exit 1
                 [ -z "$3" ] && echo "$0 $1 $2: missing argument: client id" >&2 && exit 1
                 cn="`fgrep -rH \"#$3\" /opt/openvpn-\"$2\"/ccd/ | cut -d \: -f 1 | awk -F \/ '{print $NF}'`"
-                [ ! -z "$4" -a ! -z "$5" ] && echo "$4/$5" > /opt/openvpn-"$2"/tc/"$cn" || rm -f /opt/openvpn-"$2"/tc/"$cn" 2>/dev/null
+                [ ! -z "$cn" -a ! -z "$4" -a ! -z "$5" ] && echo "$4/$5" > /opt/openvpn-"$2"/tc/"$cn" || rm -f /opt/openvpn-"$2"/tc/"$cn" 2>/dev/null
                 [ -f /opt/openvpn-"$2"/tc/"$cn".active_tun ] && dev=`cat /opt/openvpn-"$2"/tc/"$cn".active_tun` openvpn_set_unset_bandwidth_limit "$2" "$cn" "set"
             ;;
             *)

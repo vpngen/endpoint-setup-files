@@ -1,10 +1,10 @@
 {
   "ProxyBook": { "openvpn": [ "tcp", "localhost:1194" ] },
-  "BypassUID": [ "${cloak_bypass_uid}" ],
+  "BypassUID": [],
   "BindAddr": [ "${ext_ip}:443" ],
   "RedirAddr": "${cloak_domain}",
   "PrivateKey": "${cloak_private_key}",
-  "AdminUID": "",
-  "DatabasePath": "",
+  "AdminUID": "${cloak_admin_uid}",
+  "DatabasePath": "/opt/cloak-${netns}/userinfo/userinfo.db",
   "StreamTimeout": 300
 }

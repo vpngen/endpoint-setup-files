@@ -7,19 +7,22 @@ EnvironmentFile=/etc/wg-quick-ns.env.%i
 
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=cloak-ns
+SyslogIdentifier=cloak-ns-%i
 
 ExecStartPre=/bin/bash -c "setcap CAP_NET_BIND_SERVICE=+eip /usr/sbin/ck-server"
 ExecStartPre=/bin/bash -c "echo \"nameserver 1.1.1.1\" > /opt/cloak-%i/resolv.conf"
 ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -d ${EXT_IP} -p tcp --dport 443 -j ACCEPT || true"
 ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -d ${EXT_IP} -p tcp --sport 443 -j ACCEPT || true"
 
+ExecStartPre=/bin/bash -c "test -f /etc/systemd/system/cloak-admin@.service && /usr/bin/systemctl start cloak-admin@%i"
+
 ExecStart=/usr/bin/unshare --mount /bin/bash -c "mount --bind /opt/cloak-%i/resolv.conf /etc/resolv.conf && /usr/bin/ip netns exec ns%i /usr/sbin/runuser -g nogroup -u nobody -- /usr/sbin/ck-server -c /opt/cloak-%i/ck-server.json"
+
+ExecStopPost=/bin/bash -c "test -f /etc/systemd/system/cloak-admin@.service && ( /usr/bin/systemctl stop cloak-admin@%i || true )"
 
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D INPUT -d ${EXT_IP} -p tcp --sport 443 -j ACCEPT || true"
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D INPUT -d ${EXT_IP} -p tcp --dport 443 -j ACCEPT || true"
 
-StandardOutput=null
 Type=simple
 Restart=on-failure
 
