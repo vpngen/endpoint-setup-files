@@ -9,5 +9,6 @@
   "BrowserSig": "chrome",
   "StreamTimeout": 300,
   "RemoteHost": "${ext_ip}",
-  "LocalPort": "${local_admin_port}"
+  "LocalHost": "127.0.0.1",
+  "LocalPort": "1984"
 }

@@ -192,6 +192,10 @@ case "${t}" in
                                             v=`ud_b64 "${v}"`
                                             openvpn_csr="${v#*=}"
                                     ;;
+                                    "--cloak-uid="* )
+                                            v=`ud_b64 "${v}"`
+                                            cloak_uid=`echo "${v#*=}" | tr -d "\042\047\140" | head -c 24`
+                                    ;;
                             esac
                     done
                 else
@@ -215,6 +219,10 @@ case "${t}" in
                 fi
                 if [ "${t}" == "/?peer_add" -a ! -z "`ip netns exec \"ns${wgi}\" wg show \"${wgi}\" peers | fgrep \"${f[0]}\"`" ]; then
                     echo "{\"code\": \"151\", \"error\": \"Wireguard peer public key is duplicated\"}"
+                    exit 0
+                fi
+                if [ "${t}" == "/?peer_add" -a ! -z "${openvpn_csr}" -a -z "${cloak_uid}" ]; then
+                    echo "{\"code\": \"154\", \"error\": \"Parameter cloak-uid can not be empty in case OpenVPN client certificate is requested\"}"
                     exit 0
                 fi
                 if [ "${t}" == "/?peer_add" ]; then
@@ -301,9 +309,8 @@ case "${t}" in
                         cd /opt/openvpn-"${wgi}"
                         /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 --days=3650 sign-req client "${client_uid}" >/dev/null 2>&1
 
-                        cloak_uid="`echo \"${f[0]}\" | wg pubkey | base64 -d | tail -c 16 | base64 -w 0`"
                         cloak_uid_base64url="`echo \"${cloak_uid}\" | sed 's/\//_/g;s/\+/-/g'`"
-                        curl -s --data-raw "{\"UID\":\"${cloak_uid}\"}" "http://127.0.0.1:"$((19840+${wgi##*[^0-9]}))"/admin/users/${cloak_uid_base64url}" >/dev/null 2>&1
+                        ip netns exec "ns${wgi}" curl -s --data-raw "{\"UID\":\"${cloak_uid}\"}" "http://127.0.0.1:1984/admin/users/${cloak_uid_base64url}" >/dev/null 2>&1
 
                         if [ ! -z "${ctrl}" ]; then
                             for i in {2..254}; do
@@ -377,8 +384,8 @@ case "${t}" in
                     fi
                     set_unset_bandwidth_limit "${wgi}" "${f[0]}"
 
-                    cloak_uid_base64url="`echo \"${f[0]}\" | wg pubkey | base64 -d | tail -c 16 | base64 -w 0 | sed 's/\//_/g;s/\+/-/g'`"
-                    curl -s -X DELETE "http://127.0.0.1:"$((19840+${wgi##*[^0-9]}))"/admin/users/${cloak_uid_base64url}" >/dev/null 2>&1
+                    cloak_uid_base64url="`fgrep -r \"#${f[0]}\" /opt/openvpn-\"${wgi}\"/ccd/ | cut -d ' ' -f 2 | sed 's/\//_/g;s/\+/-/g'`"
+                    ip netns exec "ns${wgi}" curl -s -X DELETE "http://127.0.0.1:1984/admin/users/${cloak_uid_base64url}" >/dev/null 2>&1
 
                     fgrep -r "#${f[0]}" /opt/openvpn-"${wgi}"/ccd/ | cut -d \: -f 1 | xargs rm -f
 
@@ -424,7 +431,7 @@ case "${t}" in
                             | sed "s/^#/ipsec /" ;
                         join -j 1 -a 1 -e 0 -o 1.2,2.3,2.4 \
                             <(grep -rH '^#' /opt/openvpn-"${wgi}"/ccd/ | sed 's#^.*/\([^/]*\):\##\1 #' | sort -k1,1) \
-                            <(cat /opt/openvpn-"${wgi}"/status.log | tr ',' ' ' | sort -k1,1) \
+                            <(cat /opt/openvpn-"${wgi}"/status.log 2>/dev/null | tr ',' ' ' | sort -k1,1) \
                             | sed "s/^/cloak-openvpn /" ;
                     ) | jq -c -R -s 'split("\n") | map(select(length > 0) | split(" ")) | map({ (.[1]): { (.[0]): {"received": .[2], "sent": .[3]} } }) | reduce .[] as $item ({}; . *= $item) ' | tr -d '\n'
                     echo -n ", \"last-seen\": "
@@ -436,7 +443,7 @@ case "${t}" in
                             | sed "s/^#/ipsec /" ;
                         join -j 1 -a 1 -e 0 -o 1.2,2.7 \
                             <(grep -rH '^#' /opt/openvpn-"${wgi}"/ccd/ | sed 's#^.*/\([^/]*\):\##\1 #' | sort -k1,1) \
-                            <(cat /opt/openvpn-"${wgi}"/status.log | tr ',' ' ' | sed 's/$/ '`date +%s`'/' | sort -k1,1) \
+                            <(cat /opt/openvpn-"${wgi}"/status.log 2>/dev/null | tr ',' ' ' | sed 's/$/ '`date +%s`'/' | sort -k1,1) \
                             | sed "s/^/cloak-openvpn /" ;
                     ) | jq -c -R -s 'split("\n") | map(select(length > 0) | split(" ")) | map({ (.[1]): { (.[0]): {"timestamp": .[2]} } }) | reduce .[] as $item ({}; . *= $item) ' | tr -d '\n'
                     echo -n ", \"endpoints\": "
@@ -448,7 +455,7 @@ case "${t}" in
                             | sed "s/^#/ipsec /" ;
                         join -1 3 -2 1 -a 1 -e "(none)" -o 1.2,2.2 \
                             <(grep -rH '^#' /opt/openvpn-"${wgi}"/ccd/ | sed 's#^.*/\([^/]*\):\##\1 #' | sort -k1,1) \
-                            <(cat /opt/cloak-"${wgi}"/userinfo/userauthdb.log | sort -k1,1) \
+                            <(cat /opt/cloak-"${wgi}"/userinfo/userauthdb.log 2>/dev/null | sort -k1,1) \
                             | sed "s/^/cloak-openvpn /" ;
                     ) | sed 's#\.[0-9]*:[0-9]* #.0/24 #g' | sed 's#\.[0-9]*$#.0/24#g' \
                         | jq -c -R -s 'split("\n") | map(select(length > 0) | split(" ")) | map({ (.[1]): { (.[0]): {"subnet": .[2]} } }) | reduce .[] as $item ({}; . *= $item) ' | tr -d '\n'
@@ -628,7 +635,6 @@ case "${t}" in
                 sed -i "s#\${cloak_admin_uid}#${cloak_admin_uid}#g" /opt/cloak-"${wgi}"/ck-admin-client.json
                 sed -i "s#\${cloak_public_key}#"$(echo ${f[0]} | wg pubkey)"#g" /opt/cloak-"${wgi}"/ck-admin-client.json
                 sed -i "s/\${ext_ip}/${ext_ip_nm%%/[0-9]*}/g" /opt/cloak-"${wgi}"/ck-admin-client.json
-                sed -i "s/\${local_admin_port}/"$((19840+${wgi##*[^0-9]}))"/g" /opt/cloak-"${wgi}"/ck-admin-client.json
 
                 systemctl start wg-quick-ns@"${wgi}"
 

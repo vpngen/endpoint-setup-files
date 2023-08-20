@@ -14,11 +14,11 @@ ExecStartPre=/bin/bash -c "echo \"nameserver 1.1.1.1\" > /opt/cloak-%i/resolv.co
 ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -d ${EXT_IP} -p tcp --dport 443 -j ACCEPT || true"
 ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -d ${EXT_IP} -p tcp --sport 443 -j ACCEPT || true"
 
-ExecStartPre=/bin/bash -c "test -f /etc/systemd/system/cloak-admin@.service && /usr/bin/systemctl start cloak-admin@%i"
+ExecStartPre=/bin/bash -c "test -f /etc/systemd/system/cloak-admin-ns@.service && /usr/bin/systemctl start cloak-admin-ns@%i"
 
 ExecStart=/usr/bin/unshare --mount /bin/bash -c "mount --bind /opt/cloak-%i/resolv.conf /etc/resolv.conf && /usr/bin/ip netns exec ns%i /usr/sbin/runuser -g nogroup -u nobody -- /usr/sbin/ck-server -c /opt/cloak-%i/ck-server.json"
 
-ExecStopPost=/bin/bash -c "test -f /etc/systemd/system/cloak-admin@.service && ( /usr/bin/systemctl stop cloak-admin@%i || true )"
+ExecStopPost=/bin/bash -c "test -f /etc/systemd/system/cloak-admin-ns@.service && ( /usr/bin/systemctl stop cloak-admin-ns@%i || true )"
 
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D INPUT -d ${EXT_IP} -p tcp --sport 443 -j ACCEPT || true"
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D INPUT -d ${EXT_IP} -p tcp --dport 443 -j ACCEPT || true"

@@ -1,0 +1,23 @@
+[Unit]
+Description=Cloak administration client namespaced %i
+After=network.target
+
+[Service]
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cloak-admin-ns-%i
+
+ExecStartPre=/bin/bash -c "test -f /opt/cloak-%i/resolv.conf ||  echo \"nameserver 1.1.1.1\" > /opt/cloak-%i/resolv.conf"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -i lo -p tcp --dport 1984 -j ACCEPT || true"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -i lo -p tcp --sport 1984 -j ACCEPT || true"
+
+ExecStart=/usr/bin/unshare --mount /bin/bash -c "mount --bind /opt/cloak-%i/resolv.conf /etc/resolv.conf && /usr/bin/ip netns exec ns%i /usr/sbin/runuser -g nogroup -u nobody -- /usr/sbin/ck-client -a $(cat /opt/cloak-%i/ck-admin-client.json | jq -r '.UID') -c /opt/cloak-%i/ck-admin-client.json"
+
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D INPUT -i lo -p tcp --sport 1984 -j ACCEPT || true"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D INPUT -i lo -p tcp --dport 1984 -j ACCEPT || true"
+
+Type=simple
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
