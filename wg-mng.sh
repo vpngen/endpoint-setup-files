@@ -194,7 +194,9 @@ case "${t}" in
                                     ;;
                                     "--cloak-uid="* )
                                             v=`ud_b64 "${v}"`
-                                            cloak_uid=`echo "${v#*=}" | tr -d "\042\047\140" | head -c 24`
+                                            cloak_uid="${v#*=}"
+                                            nacl_d "${cloak_uid}" "Cloak UID" 16 16
+                                            cloak_uid="${nacl_d_ret}"
                                     ;;
                             esac
                     done
