@@ -3,7 +3,7 @@ port 1194
 proto tcp
 dev tun
 topology subnet
-server 100.128.0.0 255.255.0.0
+server 100.126.0.0 255.255.0.0
 keepalive 10 120
 cipher AES-256-GCM
 data-ciphers AES-256-GCM

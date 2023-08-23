@@ -16,13 +16,13 @@ ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -i tun+
 ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A FORWARD -i ${EXT_DEV} -o tun+ -j ACCEPT || true"
 ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A FORWARD -o ${EXT_DEV} -i tun+ -j ACCEPT || true"
 ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -A PREROUTING -i tun+ -p udp -m udp --dport 53 -j REDIRECT --to-ports 5355 || true"
-ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -A POSTROUTING -s 100.128.0.0/16 -m hashlimit --hashlimit-name logv4 --hashlimit-mode srcip,dstip,dstport --hashlimit-upto 1/minute --hashlimit-burst 1 --hashlimit-htable-expire 60000 -j LOG --log-prefix \"[LEA-DIR]: \" || true"
-ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -A POSTROUTING -s 100.128.0.0/16 -j SNAT --to ${EXT_IP} || true"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -A POSTROUTING -s 100.126.0.0/16 -m hashlimit --hashlimit-name logv4 --hashlimit-mode srcip,dstip,dstport --hashlimit-upto 1/minute --hashlimit-burst 1 --hashlimit-htable-expire 60000 -j LOG --log-prefix \"[LEA-DIR]: \" || true"
+ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -A POSTROUTING -s 100.126.0.0/16 -j SNAT --to ${EXT_IP} || true"
 
 ExecStart=/usr/bin/unshare --mount /bin/bash -c "mount --bind /opt/openvpn-%i/hosts /etc/hosts && /usr/bin/ip netns exec ns%i /usr/sbin/openvpn --config /opt/openvpn-%i/server.conf"
 
-ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -D POSTROUTING -s 100.128.0.0/16 -j SNAT --to ${EXT_IP} || true"
-ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -D POSTROUTING -s 100.128.0.0/16 -m hashlimit --hashlimit-name logv4 --hashlimit-mode srcip,dstip,dstport --hashlimit-upto 1/minute --hashlimit-burst 1 --hashlimit-htable-expire 60000 -j LOG --log-prefix \"[LEA-DIR]: \" || true"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -D POSTROUTING -s 100.126.0.0/16 -j SNAT --to ${EXT_IP} || true"
+ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -D POSTROUTING -s 100.126.0.0/16 -m hashlimit --hashlimit-name logv4 --hashlimit-mode srcip,dstip,dstport --hashlimit-upto 1/minute --hashlimit-burst 1 --hashlimit-htable-expire 60000 -j LOG --log-prefix \"[LEA-DIR]: \" || true"
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -D PREROUTING -i tun+ -p udp -m udp --dport 53 -j REDIRECT --to-ports 5355 || true"
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D FORWARD -i ${EXT_DEV} -o tun+ -j ACCEPT || true"
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D FORWARD -o ${EXT_DEV} -i tun+ -j ACCEPT || true"

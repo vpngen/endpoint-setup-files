@@ -316,12 +316,12 @@ case "${t}" in
 
                         if [ ! -z "${ctrl}" ]; then
                             for i in {2..254}; do
-                                fgrep -qr " 100.128.255.$i " /opt/openvpn-"${wgi}"/ccd/ \
-                                    || echo -e "#${f[0]} ${cloak_uid}\nifconfig-push 100.128.255.$i 255.255.0.0" > /opt/openvpn-"${wgi}"/ccd/"${openvpn_cn}" \
+                                fgrep -qr " 100.126.255.$i " /opt/openvpn-"${wgi}"/ccd/ \
+                                    || echo -e "#${f[0]} ${cloak_uid}\nifconfig-push 100.126.255.$i 255.255.0.0" > /opt/openvpn-"${wgi}"/ccd/"${openvpn_cn}" \
                                     && break
                             done
 
-                            echo "100.128.0.1 vpn.works" > /etc/dnsmasq.hosts."${wgi}:5355"
+                            echo "100.126.0.1 vpn.works" > /etc/dnsmasq.hosts."${wgi}:5355"
                             /usr/bin/systemctl reload dnsmasq-ns@"${wgi}:5355"
 
                             av6="`echo \"${addrs}\" | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
@@ -329,9 +329,9 @@ case "${t}" in
                             cv6ld=`expr $(printf "%d" "0x${cv6##*:}" 2>/dev/null) + 1`
 
                             ip netns exec "ns${wgi}" ip6tables -A INPUT -s "${cv6}" -d "${cv6%:[0-9a-f]*}:`printf \"%x\" \"$cv6ld\"`" -p tcp -m tcp -m multiport --sports 80,443 -m comment --comment " ${av6}/" -j ACCEPT
-                            ip netns exec "ns${wgi}" iptables -t nat -A PREROUTING -i tun+ -d 100.128.0.1 -p tcp -m tcp --dport 80 -j REDIRECT --to-ports 8080
-                            ip netns exec "ns${wgi}" iptables -t nat -A PREROUTING -i tun+ -d 100.128.0.1 -p tcp -m tcp --dport 443 -j REDIRECT --to-ports 8443
-                            ip netns exec "ns${wgi}" iptables -A INPUT -i tun+ -d 100.128.0.1 -s 100.128.255.0/24 -p tcp -m multiport --dports 8080,8443 -j ACCEPT
+                            ip netns exec "ns${wgi}" iptables -t nat -A PREROUTING -i tun+ -d 100.126.0.1 -p tcp -m tcp --dport 80 -j REDIRECT --to-ports 8080
+                            ip netns exec "ns${wgi}" iptables -t nat -A PREROUTING -i tun+ -d 100.126.0.1 -p tcp -m tcp --dport 443 -j REDIRECT --to-ports 8443
+                            ip netns exec "ns${wgi}" iptables -A INPUT -i tun+ -d 100.126.0.1 -s 100.126.255.0/24 -p tcp -m multiport --dports 8080,8443 -j ACCEPT
                         else
                             echo "#${f[0]} ${cloak_uid}" > /opt/openvpn-"${wgi}"/ccd/"${openvpn_cn}"
                         fi
@@ -355,9 +355,9 @@ case "${t}" in
                         /usr/bin/systemctl stop ipsec-keydesk-proxy-443@"${wgi}:*"
 
                         if [ ! -z "`fgrep -r \"#${f[0]}\" /opt/openvpn-\"${wgi}\"/ccd/`" ]; then
-                            ip netns exec "ns${wgi}" iptables -D INPUT -i tun+ -d 100.128.0.1 -s 100.128.255.0/24 -p tcp -m multiport --dports 8080,8443 -j ACCEPT
-                            ip netns exec "ns${wgi}" iptables -t nat -D PREROUTING -i tun+ -d 100.128.0.1 -p tcp -m tcp --dport 80 -j REDIRECT --to-ports 8080
-                            ip netns exec "ns${wgi}" iptables -t nat -D PREROUTING -i tun+ -d 100.128.0.1 -p tcp -m tcp --dport 443 -j REDIRECT --to-ports 8443
+                            ip netns exec "ns${wgi}" iptables -D INPUT -i tun+ -d 100.126.0.1 -s 100.126.255.0/24 -p tcp -m multiport --dports 8080,8443 -j ACCEPT
+                            ip netns exec "ns${wgi}" iptables -t nat -D PREROUTING -i tun+ -d 100.126.0.1 -p tcp -m tcp --dport 80 -j REDIRECT --to-ports 8080
+                            ip netns exec "ns${wgi}" iptables -t nat -D PREROUTING -i tun+ -d 100.126.0.1 -p tcp -m tcp --dport 443 -j REDIRECT --to-ports 8443
                         fi
 
                         if [ ! -z "`fgrep \" #${f[0]}\" /etc/accel-ppp.chap-secrets.\"${wgi}\"`" ]; then
