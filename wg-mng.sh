@@ -302,7 +302,7 @@ case "${t}" in
                         fi
                     fi
                     openvpn_cn=
-                    while [ ${ec} -eq 0 -a ! -z "${openvpn_csr}" ]; do
+                    while [ ${ec} -eq 0 -a ! -z "${openvpn_csr}" -a -f "/opt/openvpn-${wgi}/server.conf" ]; do
                         client_uid="`echo \"${f[0]}\" | wg pubkey | sed 's/\//_/g;s/\+/-/g'`"
                         echo -n "${openvpn_csr}" | base64 -d 2>/dev/null | gunzip > /opt/openvpn-"${wgi}"/pki/reqs/"${client_uid}".req 2>/dev/null
                         [ ! -s "/opt/openvpn-"${wgi}"/pki/reqs/"${client_uid}".req" ] && break
@@ -354,7 +354,7 @@ case "${t}" in
                         /usr/bin/systemctl stop ipsec-keydesk-proxy-80@"${wgi}:*"
                         /usr/bin/systemctl stop ipsec-keydesk-proxy-443@"${wgi}:*"
 
-                        if [ ! -z "`fgrep -r \"#${f[0]}\" /opt/openvpn-\"${wgi}\"/ccd/`" ]; then
+                        if [ -f "/opt/openvpn-\"${wgi}\"/server.conf" -a ! -z "`fgrep -r \"#${f[0]}\" /opt/openvpn-\"${wgi}\"/ccd/`" ]; then
                             ip netns exec "ns${wgi}" iptables -D INPUT -i tun+ -d 100.126.0.1 -s 100.126.255.0/24 -p tcp -m multiport --dports 8080,8443 -j ACCEPT
                             ip netns exec "ns${wgi}" iptables -t nat -D PREROUTING -i tun+ -d 100.126.0.1 -p tcp -m tcp --dport 80 -j REDIRECT --to-ports 8080
                             ip netns exec "ns${wgi}" iptables -t nat -D PREROUTING -i tun+ -d 100.126.0.1 -p tcp -m tcp --dport 443 -j REDIRECT --to-ports 8443
@@ -386,10 +386,12 @@ case "${t}" in
                     fi
                     set_unset_bandwidth_limit "${wgi}" "${f[0]}"
 
-                    cloak_uid_base64url="`fgrep -r \"#${f[0]}\" /opt/openvpn-\"${wgi}\"/ccd/ | cut -d ' ' -f 2 | sed 's/\//_/g;s/\+/-/g'`"
-                    ip netns exec "ns${wgi}" curl -s -X DELETE "http://127.0.0.1:1984/admin/users/${cloak_uid_base64url}" >/dev/null 2>&1
+                    if [ -f "/opt/openvpn-${wgi}/server.conf" ]; then
+                        cloak_uid_base64url="`fgrep -r \"#${f[0]}\" /opt/openvpn-\"${wgi}\"/ccd/ | cut -d ' ' -f 2 | sed 's/\//_/g;s/\+/-/g'`"
+                        ip netns exec "ns${wgi}" curl -s -X DELETE "http://127.0.0.1:1984/admin/users/${cloak_uid_base64url}" >/dev/null 2>&1
 
-                    fgrep -r "#${f[0]}" /opt/openvpn-"${wgi}"/ccd/ | cut -d \: -f 1 | xargs rm -f
+                        fgrep -r "#${f[0]}" /opt/openvpn-"${wgi}"/ccd/ | cut -d \: -f 1 | xargs rm -f
+                    fi
 
                     # sed is not used due to complicated special symbol escaping
                     fgrep -v " #${f[0]}" /etc/accel-ppp.chap-secrets."${wgi}" > /etc/accel-ppp.chap-secrets."${wgi}".tmp
@@ -432,7 +434,7 @@ case "${t}" in
                             <(ip netns exec "ns${wgi}" accel-cmd -4 -t 3 show sessions username,rx-bytes-raw,tx-bytes-raw | tail -n +3 | tr -d " \r" | tr "|" " " | sort -k 1,1 -u) \
                             | sed "s/^#/ipsec /" ;
                         join -j 1 -a 1 -e 0 -o 1.2,2.3,2.4 \
-                            <(grep -rH '^#' /opt/openvpn-"${wgi}"/ccd/ | sed 's#^.*/\([^/]*\):\##\1 #' | sort -k1,1) \
+                            <(grep -rH '^#' /opt/openvpn-"${wgi}"/ccd/ 2>/dev/null | sed 's#^.*/\([^/]*\):\##\1 #' | sort -k1,1) \
                             <(cat /opt/openvpn-"${wgi}"/status.log 2>/dev/null | tr ',' ' ' | sort -k1,1) \
                             | sed "s/^/cloak-openvpn /" ;
                     ) | jq -c -R -s 'split("\n") | map(select(length > 0) | split(" ")) | map({ (.[1]): { (.[0]): {"received": .[2], "sent": .[3]} } }) | reduce .[] as $item ({}; . *= $item) ' | tr -d '\n'
@@ -444,7 +446,7 @@ case "${t}" in
                             <(ip netns exec "ns${wgi}" accel-cmd -4 -t 3 show sessions username | tail -n +3 | tr -d " \r" | tr "|" " " | sed 's/$/ '`date +%s`'/' | sort -k 1,1 -u) \
                             | sed "s/^#/ipsec /" ;
                         join -j 1 -a 1 -e 0 -o 1.2,2.7 \
-                            <(grep -rH '^#' /opt/openvpn-"${wgi}"/ccd/ | sed 's#^.*/\([^/]*\):\##\1 #' | sort -k1,1) \
+                            <(grep -rH '^#' /opt/openvpn-"${wgi}"/ccd/ 2>/dev/null | sed 's#^.*/\([^/]*\):\##\1 #' | sort -k1,1) \
                             <(cat /opt/openvpn-"${wgi}"/status.log 2>/dev/null | tr ',' ' ' | sed 's/$/ '`date +%s`'/' | sort -k1,1) \
                             | sed "s/^/cloak-openvpn /" ;
                     ) | jq -c -R -s 'split("\n") | map(select(length > 0) | split(" ")) | map({ (.[1]): { (.[0]): {"timestamp": .[2]} } }) | reduce .[] as $item ({}; . *= $item) ' | tr -d '\n'
@@ -456,7 +458,7 @@ case "${t}" in
                             <(ip netns exec "ns${wgi}" accel-cmd -4 -t 3 show sessions username,calling-sid | tail -n +3 | tr -d " \r" | tr "|" " " | sort -k 1,1 -u) \
                             | sed "s/^#/ipsec /" ;
                         join -1 3 -2 1 -a 1 -e "(none)" -o 1.2,2.2 \
-                            <(grep -rH '^#' /opt/openvpn-"${wgi}"/ccd/ | sed 's#^.*/\([^/]*\):\##\1 #' | sort -k1,1) \
+                            <(grep -rH '^#' /opt/openvpn-"${wgi}"/ccd/ 2>/dev/null | sed 's#^.*/\([^/]*\):\##\1 #' | sort -k1,1) \
                             <(cat /opt/cloak-"${wgi}"/userinfo/userauthdb.log 2>/dev/null | sort -k1,1) \
                             | sed "s/^/cloak-openvpn /" ;
                     ) | sed 's#\.[0-9]*:[0-9]* #.0/24 #g' | sed 's#\.[0-9]*$#.0/24#g' \
@@ -563,12 +565,12 @@ case "${t}" in
                 if [ -z "${wg_port}" -o "${wg_port}" -le 1024 -o "${wg_port}" -ge 65535 ]; then
                     echo "{\"code\": \"150\", \"error\": \"Wireguard port is not in range 1025-65534\"}"
                 fi
-                if [ -z "${openvpn_ca_key}" ]; then
-                    echo "{\"code\": \"152\", \"error\": \"mandatory parameter openvpn-ca-key is not set\"}"
+                if [ -z "${openvpn_ca_key}" -a ! -z "${openvpn_ca_crt}" ]; then
+                    echo "{\"code\": \"152\", \"error\": \"openvpn-ca-crt parameter is set but openvpn-ca-key is not\"}"
                     exit 0
                 fi
-                if [ -z "${openvpn_ca_crt}" ]; then
-                    echo "{\"code\": \"153\", \"error\": \"mandatory parameter openvpn-ca-crt is not set\"}"
+                if [ -z "${openvpn_ca_crt}" -a ! -z "${openvpn_ca_key}" ]; then
+                    echo "{\"code\": \"153\", \"error\": \"openvpn-ca-key parameter is set but openvpn-ca-crt is not\"}"
                     exit 0
                 fi
 
@@ -604,39 +606,41 @@ case "${t}" in
                 echo > /etc/dnsmasq.hosts."${wgi}:5354"
                 echo > /etc/dnsmasq.hosts."${wgi}:5355"
 
-                mkdir -p /opt/openvpn-"${wgi}"/ccd /opt/openvpn-"${wgi}"/tc
-                chmod 1777 /opt/openvpn-"${wgi}"/tc
-                cp -f /etc/openvpn/server.conf.tpl /opt/openvpn-"${wgi}"/server.conf
-                sed -i "s/\${netns}/${wgi}/g" /opt/openvpn-"${wgi}"/server.conf
+                if [ ! -z "${openvpn_ca_crt}" -a ! -z "${openvpn_ca_key}" ]; then
+                    mkdir -p /opt/openvpn-"${wgi}"/ccd /opt/openvpn-"${wgi}"/tc
+                    chmod 1777 /opt/openvpn-"${wgi}"/tc
+                    cp -f /etc/openvpn/server.conf.tpl /opt/openvpn-"${wgi}"/server.conf
+                    sed -i "s/\${netns}/${wgi}/g" /opt/openvpn-"${wgi}"/server.conf
 
-                cd /opt/openvpn-"${wgi}"
-                /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 init-pki >/dev/null
-                /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 --days=3650 build-ca nopass >/dev/null 2>&1
-                echo -n "${openvpn_ca_key}" | base64 -d | gunzip > /opt/openvpn-"${wgi}"/pki/private/ca.key
-                chmod 600 /opt/openvpn-"${wgi}"/pki/private/ca.key
-                echo -n "${openvpn_ca_crt}" | base64 -d | gunzip > /opt/openvpn-"${wgi}"/pki/ca.crt
-                EASYRSA_REQ_CN=server /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 gen-req server nopass >/dev/null 2>&1
-                /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 --days=3650 sign-req server server >/dev/null 2>&1
-                touch /opt/openvpn-"${wgi}"/pki/index.txt
-                /usr/share/easy-rsa/easyrsa --batch --days=3650 gen-crl >/dev/null
-                cp -f /opt/openvpn-"${wgi}"/pki/crl.pem /opt/openvpn-"${wgi}"/crl.pem
-                chmod 644 /opt/openvpn-"${wgi}"/crl.pem
+                    cd /opt/openvpn-"${wgi}"
+                    /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 init-pki >/dev/null
+                    /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 --days=3650 build-ca nopass >/dev/null 2>&1
+                    echo -n "${openvpn_ca_key}" | base64 -d | gunzip > /opt/openvpn-"${wgi}"/pki/private/ca.key
+                    chmod 600 /opt/openvpn-"${wgi}"/pki/private/ca.key
+                    echo -n "${openvpn_ca_crt}" | base64 -d | gunzip > /opt/openvpn-"${wgi}"/pki/ca.crt
+                    EASYRSA_REQ_CN=server /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 gen-req server nopass >/dev/null 2>&1
+                    /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 --days=3650 sign-req server server >/dev/null 2>&1
+                    touch /opt/openvpn-"${wgi}"/pki/index.txt
+                    /usr/share/easy-rsa/easyrsa --batch --days=3650 gen-crl >/dev/null
+                    cp -f /opt/openvpn-"${wgi}"/pki/crl.pem /opt/openvpn-"${wgi}"/crl.pem
+                    chmod 644 /opt/openvpn-"${wgi}"/crl.pem
 
-                cloak_admin_uid="`cat /dev/urandom 2>/dev/null | head -c 16 | base64 -w 0`"
-                mkdir -p /opt/cloak-"${wgi}"/userinfo
-                chmod 1777 /opt/cloak-"${wgi}"/userinfo
+                    cloak_admin_uid="`cat /dev/urandom 2>/dev/null | head -c 16 | base64 -w 0`"
+                    mkdir -p /opt/cloak-"${wgi}"/userinfo
+                    chmod 1777 /opt/cloak-"${wgi}"/userinfo
 
-                cp -f /etc/cloak/ck-server.json.tpl /opt/cloak-"${wgi}"/ck-server.json
-                sed -i "s#\${cloak_admin_uid}#${cloak_admin_uid}#g" /opt/cloak-"${wgi}"/ck-server.json
-                sed -i "s#\${cloak_domain}#${cloak_domain:-yandex.com}#g" /opt/cloak-"${wgi}"/ck-server.json
-                sed -i "s#\${cloak_private_key}#${f[0]}#g" /opt/cloak-"${wgi}"/ck-server.json
-                sed -i "s/\${ext_ip}/${ext_ip_nm%%/[0-9]*}/g" /opt/cloak-"${wgi}"/ck-server.json
-                sed -i "s/\${netns}/${wgi}/g" /opt/cloak-"${wgi}"/ck-server.json
+                    cp -f /etc/cloak/ck-server.json.tpl /opt/cloak-"${wgi}"/ck-server.json
+                    sed -i "s#\${cloak_admin_uid}#${cloak_admin_uid}#g" /opt/cloak-"${wgi}"/ck-server.json
+                    sed -i "s#\${cloak_domain}#${cloak_domain:-yandex.com}#g" /opt/cloak-"${wgi}"/ck-server.json
+                    sed -i "s#\${cloak_private_key}#${f[0]}#g" /opt/cloak-"${wgi}"/ck-server.json
+                    sed -i "s/\${ext_ip}/${ext_ip_nm%%/[0-9]*}/g" /opt/cloak-"${wgi}"/ck-server.json
+                    sed -i "s/\${netns}/${wgi}/g" /opt/cloak-"${wgi}"/ck-server.json
 
-                cp -f /etc/cloak/ck-admin-client.json.tpl /opt/cloak-"${wgi}"/ck-admin-client.json
-                sed -i "s#\${cloak_admin_uid}#${cloak_admin_uid}#g" /opt/cloak-"${wgi}"/ck-admin-client.json
-                sed -i "s#\${cloak_public_key}#"$(echo ${f[0]} | wg pubkey)"#g" /opt/cloak-"${wgi}"/ck-admin-client.json
-                sed -i "s/\${ext_ip}/${ext_ip_nm%%/[0-9]*}/g" /opt/cloak-"${wgi}"/ck-admin-client.json
+                    cp -f /etc/cloak/ck-admin-client.json.tpl /opt/cloak-"${wgi}"/ck-admin-client.json
+                    sed -i "s#\${cloak_admin_uid}#${cloak_admin_uid}#g" /opt/cloak-"${wgi}"/ck-admin-client.json
+                    sed -i "s#\${cloak_public_key}#"$(echo ${f[0]} | wg pubkey)"#g" /opt/cloak-"${wgi}"/ck-admin-client.json
+                    sed -i "s/\${ext_ip}/${ext_ip_nm%%/[0-9]*}/g" /opt/cloak-"${wgi}"/ck-admin-client.json
+                fi
 
                 systemctl start wg-quick-ns@"${wgi}"
 
@@ -687,7 +691,7 @@ case "${t}" in
                     rm -f /etc/ipsec.secrets."${wgi}" /etc/ipsec.conf."${wgi}" /etc/accel-ppp.chap-secrets."${wgi}" /etc/accel-ppp.conf."${wgi}" 2>/dev/null
                     rm -f "/etc/wg-quick-ns.env.${wgi}" 2>/dev/null
 
-                    rm -rf /opt/openvpn-"${wgi}" /opt/cloak-"${wgi}"
+                    rm -rf /opt/openvpn-"${wgi}" /opt/cloak-"${wgi}" 2>/dev/null
 
                     i=0
                     while [ -z "`ip -4 -o a | fgrep \" ${ext_if} \"`" ]; do
