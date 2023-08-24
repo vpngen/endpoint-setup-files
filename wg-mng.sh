@@ -459,7 +459,7 @@ case "${t}" in
                             <(ip netns exec "ns${wgi}" accel-cmd -4 -t 3 show sessions username,calling-sid | tail -n +3 | tr -d " \r" | tr "|" " " | sort -k 1,1 -u) \
                             | sed "s/^#/ipsec /" ;
                         join -1 3 -2 1 -a 1 -e "(none)" -o 1.2,2.2 \
-                            <(grep -rH '^#' /opt/openvpn-"${wgi}"/ccd/ 2>/dev/null | sed 's#^.*/\([^/]*\):\##\1 #' | sort -k1,1) \
+                            <(grep -rH '^#' /opt/openvpn-"${wgi}"/ccd/ 2>/dev/null | sed 's#^.*/\([^/]*\):\##\1 #' | sort -k3,3) \
                             <(cat /opt/cloak-"${wgi}"/userinfo/userauthdb.log 2>/dev/null | sort -k1,1) \
                             | sed "s/^/cloak-openvpn /" ;
                     ) | sed 's#\.[0-9]*:[0-9]* #.0/24 #g' | sed 's#\.[0-9]*$#.0/24#g' \
