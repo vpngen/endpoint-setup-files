@@ -312,7 +312,8 @@ case "${t}" in
                         /usr/share/easy-rsa/easyrsa --batch --use-algo=ec --curve=secp521r1 --digest=sha512 --days=3650 sign-req client "${client_uid}" >/dev/null 2>&1
 
                         cloak_uid_base64url="`echo \"${cloak_uid}\" | sed 's/\//_/g;s/\+/-/g'`"
-                        ip netns exec "ns${wgi}" curl -s --data-raw "{\"UID\":\"${cloak_uid}\"}" "http://127.0.0.1:1984/admin/users/${cloak_uid_base64url}" >/dev/null 2>&1
+                        # WONTFIX: Cloak SessionsCap should be at least 2 for Android device sessions
+                        ip netns exec "ns${wgi}" curl -s --data-raw "{\"UID\":\"${cloak_uid}\",\"SessionsCap\":3}" "http://127.0.0.1:1984/admin/users/${cloak_uid_base64url}" >/dev/null 2>&1
 
                         if [ ! -z "${ctrl}" ]; then
                             for i in {2..254}; do
