@@ -355,7 +355,7 @@ case "${t}" in
                         /usr/bin/systemctl stop ipsec-keydesk-proxy-80@"${wgi}:*"
                         /usr/bin/systemctl stop ipsec-keydesk-proxy-443@"${wgi}:*"
 
-                        if [ -f "/opt/openvpn-\"${wgi}\"/server.conf" -a ! -z "`fgrep -r \"#${f[0]}\" /opt/openvpn-\"${wgi}\"/ccd/`" ]; then
+                        if [ -f "/opt/openvpn-${wgi}/server.conf" -a ! -z "`fgrep -r \"#${f[0]}\" /opt/openvpn-\"${wgi}\"/ccd/`" ]; then
                             ip netns exec "ns${wgi}" iptables -D INPUT -i tun+ -d 100.126.0.1 -s 100.126.255.0/24 -p tcp -m multiport --dports 8080,8443 -j ACCEPT
                             ip netns exec "ns${wgi}" iptables -t nat -D PREROUTING -i tun+ -d 100.126.0.1 -p tcp -m tcp --dport 80 -j REDIRECT --to-ports 8080
                             ip netns exec "ns${wgi}" iptables -t nat -D PREROUTING -i tun+ -d 100.126.0.1 -p tcp -m tcp --dport 443 -j REDIRECT --to-ports 8443
