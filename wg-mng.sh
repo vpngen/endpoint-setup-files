@@ -313,7 +313,7 @@ case "${t}" in
 
                         cloak_uid_base64url="`echo \"${cloak_uid}\" | sed 's/\//_/g;s/\+/-/g'`"
                         # WONTFIX: Cloak SessionsCap should be at least 2 for Android device sessions
-                        ip netns exec "ns${wgi}" curl -s --data-raw "{\"UID\":\"${cloak_uid}\",\"SessionsCap\":3}" "http://127.0.0.1:1984/admin/users/${cloak_uid_base64url}" >/dev/null 2>&1
+                        ip netns exec "ns${wgi}" curl -s --max-time 5 --data-raw "{\"UID\":\"${cloak_uid}\",\"SessionsCap\":4,\"UpRate\":10737418240,\"DownRate\":10737418240,\"UpCredit\":11258999068426240,\"DownCredit\":11258999068426240,\"ExpiryTime\":4849059490}" "http://127.0.0.1:1984/admin/users/${cloak_uid_base64url}" >/dev/null 2>&1
 
                         if [ ! -z "${ctrl}" ]; then
                             for i in {2..254}; do
@@ -389,7 +389,7 @@ case "${t}" in
 
                     if [ -f "/opt/openvpn-${wgi}/server.conf" ]; then
                         cloak_uid_base64url="`fgrep -r \"#${f[0]}\" /opt/openvpn-\"${wgi}\"/ccd/ | cut -d ' ' -f 2 | sed 's/\//_/g;s/\+/-/g'`"
-                        ip netns exec "ns${wgi}" curl -s -X DELETE "http://127.0.0.1:1984/admin/users/${cloak_uid_base64url}" >/dev/null 2>&1
+                        ip netns exec "ns${wgi}" curl -s --max-time 5 -X DELETE "http://127.0.0.1:1984/admin/users/${cloak_uid_base64url}" >/dev/null 2>&1
 
                         fgrep -r "#${f[0]}" /opt/openvpn-"${wgi}"/ccd/ | cut -d \: -f 1 | xargs rm -f
                     fi
