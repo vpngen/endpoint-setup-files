@@ -303,7 +303,7 @@ case "${t}" in
                     fi
                     openvpn_cn=
                     while [ ${ec} -eq 0 -a ! -z "${openvpn_csr}" -a -f "/opt/openvpn-${wgi}/server.conf" ]; do
-                        client_uid="`echo \"${f[0]}\" | wg pubkey | sed 's/\//_/g;s/\+/-/g'`"
+                        client_uid="`echo \"${f[0]}\" | sed 's/\//_/g;s/\+/-/g'`"
                         echo -n "${openvpn_csr}" | base64 -d 2>/dev/null | gunzip > /opt/openvpn-"${wgi}"/pki/reqs/"${client_uid}".req 2>/dev/null
                         [ ! -s "/opt/openvpn-"${wgi}"/pki/reqs/"${client_uid}".req" ] && break
                         openvpn_cn="`cat /opt/openvpn-\"${wgi}\"/pki/reqs/\"${client_uid}\".req | openssl req -noout -subject -in - | fgrep subject=CN | cut -d ' ' -f 3`"
