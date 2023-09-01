@@ -198,6 +198,12 @@ case "${t}" in
                                             nacl_d "${cloak_uid}" "Cloak UID" 16 16
                                             cloak_uid="${nacl_d_ret}"
                                     ;;
+                                    "--outline-ss-password="* )
+                                            v=`ud_b64 "${v}"`
+                                            outline_ss_pwd="${v#*=}"
+                                            nacl_d "${outline_ss_pwd}" "Outline Shadowsocks user password" 64 128
+                                            outline_ss_pwd=`echo "${nacl_d_ret}" | base64 -d | tr -d "\042\047\140"`
+                                    ;;
                             esac
                     done
                 else
@@ -338,6 +344,22 @@ case "${t}" in
                         fi
                         break
                     done
+                    outline_ss_port="`fgrep OUTLINE_SS_PORT /etc/wg-quick-ns.env.${wgi} | cut -d \= -f 2`"
+                    if [ ! -z "${outline_ss_port}" ]; then
+                        if [ ! -z "${ctrl}" ]; then
+                            av6="`echo \"${addrs}\" | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
+                            cv6="`echo \"${ctrl}\" | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
+                            cv6ld=`expr $(printf "%d" "0x${cv6##*:}" 2>/dev/null) + 1`
+
+                            ip netns exec "ns${wgi}" ip6tables -A INPUT -s "${cv6}" -d "${cv6%:[0-9a-f]*}:`printf \"%x\" \"$cv6ld\"`" -p tcp -m tcp -m multiport --sports 80,443 -m comment --comment " ${av6}/" -j ACCEPT
+
+                            outline_ss_config_suffix="-admin"
+                            outline_ss_port=$((outline_ss_port+1))
+                        fi
+                        client_uid="`echo \"${f[0]}\" | sed 's/\//_/g;s/\+/-/g'`"
+                        echo -e "  - id: ${client_uid}\n    port: ${outline_ss_port}\n    cipher: chacha20-ietf-poly1305\n    secret: ${outline_ss_pwd}\n" >> /opt/outline-ss-"${wgi}"/outline-ss-server${outline_ss_config_suffix}.config
+                        /usr/bin/systemctl reload outline-ss${outline_ss_config_suffix}-ns@"${wgi}"
+                    fi
                     if [ ! -z "${cv6}" ]; then
                         /usr/bin/systemctl start ipsec-keydesk-proxy-80@"${wgi}:${cv6}"
                         /usr/bin/systemctl start ipsec-keydesk-proxy-443@"${wgi}:${cv6}"
@@ -386,6 +408,13 @@ case "${t}" in
                         ip link del "${wgi}veth0"
                     fi
                     set_unset_bandwidth_limit "${wgi}" "${f[0]}"
+
+                    if [ -f "/opt/outline-ss-${wgi}/outline-ss-server.config" ]; then
+                        client_uid="`echo \"${f[0]}\" | sed 's/\//_/g;s/\+/-/g'`"
+                        [ ! -z "`fgrep ${client_uid} /opt/outline-ss-${wgi}/outline-ss-server-admin.config`" ] && outline_ss_config_suffix="-admin"
+                        sed -i '/^  - id: '${client_uid}'/,/^  - id: /{//!d};/^  - id: '${client_uid}'/d' /opt/outline-ss-"${wgi}"/outline-ss-server${outline_ss_config_suffix}.config
+                        /usr/bin/systemctl reload outline-ss${outline_ss_config_suffix}-ns@"${wgi}"
+                    fi
 
                     if [ -f "/opt/openvpn-${wgi}/server.conf" ]; then
                         cloak_uid_base64url="`fgrep -r \"#${f[0]}\" /opt/openvpn-\"${wgi}\"/ccd/ | cut -d ' ' -f 2 | sed 's/\//_/g;s/\+/-/g'`"
@@ -530,6 +559,10 @@ case "${t}" in
                                         nacl_d "${openvpn_ca_key}" "OpenVPN CA key"
                                         openvpn_ca_key="${nacl_d_ret}"
                                 ;;
+                                "--outline-ss-port="* )
+                                        outline_ss_port="${v#*=}"
+                                        outline_ss_port="${outline_ss_port%%[^0-9]*}"
+                                ;;
                         esac
                 done
                 if [ -z "${addrs}" ]; then
@@ -574,11 +607,17 @@ case "${t}" in
                     echo "{\"code\": \"153\", \"error\": \"openvpn-ca-key parameter is set but openvpn-ca-crt is not\"}"
                     exit 0
                 fi
+                if [ ! -z "${outline_ss_port}" ]; then
+                    if [ "${outline_ss_port}" -le 1024 -o "${outline_ss_port}" -ge 65534 ]; then
+                        echo "{\"code\": \"155\", \"error\": \"Outline Shadowsocks port is not in range 1025-65533\"}"
+                    fi
+                fi
 
                 echo "EXT_DEV=${ext_if}" > "/etc/wg-quick-ns.env.${wgi}"
                 echo "EXT_IP=${ext_ip_nm%%/[0-9]*}" >> "/etc/wg-quick-ns.env.${wgi}"
                 echo "EXT_CIDR=${ext_ip_nm##*/}" >> "/etc/wg-quick-ns.env.${wgi}"
                 echo "EXT_GW=${ext_gw}" >> "/etc/wg-quick-ns.env.${wgi}"
+                [ ! -z "${outline_ss_port}" ] && echo "OUTLINE_SS_PORT=${outline_ss_port}" >> "/etc/wg-quick-ns.env.${wgi}"
 
                 cp -f /etc/wireguard/wg.conf.tpl "/etc/wireguard/${wgi}.conf"
                 chmod 600 "/etc/wireguard/${wgi}.conf"
@@ -643,6 +682,13 @@ case "${t}" in
                     sed -i "s/\${ext_ip}/${ext_ip_nm%%/[0-9]*}/g" /opt/cloak-"${wgi}"/ck-admin-client.json
                 fi
 
+                if [ ! -z "${outline_ss_port}" ]; then
+                    mkdir -p /opt/outline-ss-"${wgi}"
+                    echo "keys:" > /opt/outline-ss-"${wgi}"/outline-ss-server.config
+                    echo "keys:" > /opt/outline-ss-"${wgi}"/outline-ss-server-admin.config
+                    [ -z "`getent passwd outline-ss-admin`" ] && useradd -g nogroup -s /usr/sbin/nologin -d /nonexistent outline-ss-admin
+                fi
+
                 systemctl start wg-quick-ns@"${wgi}"
 
                 ec=$?
@@ -693,6 +739,8 @@ case "${t}" in
                     rm -f "/etc/wg-quick-ns.env.${wgi}" 2>/dev/null
 
                     rm -rf /opt/openvpn-"${wgi}" /opt/cloak-"${wgi}" 2>/dev/null
+
+                    rm -rf /opt/outline-ss-"${wgi}" 2>/dev/null
 
                     i=0
                     while [ -z "`ip -4 -o a | fgrep \" ${ext_if} \"`" ]; do
