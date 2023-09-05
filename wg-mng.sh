@@ -431,6 +431,7 @@ case "${t}" in
                     [ $? -eq 0 ] && replay_log "${t}" "${f[0]}" "${wgi}" "${b}"
                     echo "{\"code\": \"$?\"}"
                 else
+                    outline_ss_port="`fgrep OUTLINE_SS_PORT /etc/wg-quick-ns.env.${wgi} | cut -d \= -f 2`"
                     echo -n "{\"code\": \"0\", \"traffic\": "
                     join -j 1 -a 1 -a 2 -e 0 -o 0,1.2,1.3,2.2,2.3 \
                         <(ip netns exec "ns${wgi}" wg show "${wgi}" transfer 2>/dev/null | tr "\t" " ") \
@@ -456,7 +457,7 @@ case "${t}" in
                             | sed "s/^#//") \
                         | tr " " "\t" | sed 's#\.[0-9]*:[0-9]*\t#.0/24\t#g' | sed 's#\.[0-9]*$#.0/24#g' | jq -R -s | tr -d '\n'
                     # new statistics
-                    echo -n ", \"data\": {\"aggregated\": {\"wireguard\":1,\"ipsec\":0,\"cloak-openvpn\":0}, \"traffic\": "
+                    echo -n ", \"data\": {\"aggregated\": {\"wireguard\":1,\"ipsec\":0,\"cloak-openvpn\":0,\"outline-ss\":1}, \"traffic\": "
                     (
                         ip netns exec "ns${wgi}" wg show "${wgi}" transfer 2>/dev/null | tr "\t" " " | sed "s/^/wireguard /" ;
                         join -j 1 -a 1 -e 0 -o 1.6,2.2,2.3 \
@@ -467,6 +468,10 @@ case "${t}" in
                             <(grep -rH '^#' /opt/openvpn-"${wgi}"/ccd/ 2>/dev/null | sed 's#^.*/\([^/]*\):\##\1 #' | sort -k1,1) \
                             <(cat /opt/openvpn-"${wgi}"/status.log 2>/dev/null | tr ',' ' ' | sort -k1,1) \
                             | sed "s/^/cloak-openvpn /" ;
+                        ip netns exec "ns${wgi}" curl -s --max-time 3 "http://127.0.0.1:${outline_ss_port}/metrics" "http://127.0.0.1:$((outline_ss_port+1))/metrics" \
+                            | fgrep 'shadowsocks_data_bytes{' \
+                            | awk -F \" '{if ($4=="c<p") down[$2]=down[$2]+substr($NF,3); if ($4=="c>p") up[$2]=up[$2]+substr($NF,3)} END {for (i in down) print i,up[i],down[i]}' \
+                            | sed "s/^/outline-ss /" ;
                     ) | jq -c -R -s 'split("\n") | map(select(length > 0) | split(" ")) | map({ (.[1]): { (.[0]): {"received": .[2], "sent": .[3]} } }) | reduce .[] as $item ({}; . *= $item) ' | tr -d '\n'
                     echo -n ", \"last-seen\": "
                     (
@@ -479,6 +484,7 @@ case "${t}" in
                             <(grep -rH '^#' /opt/openvpn-"${wgi}"/ccd/ 2>/dev/null | sed 's#^.*/\([^/]*\):\##\1 #' | sort -k1,1) \
                             <(cat /opt/openvpn-"${wgi}"/status.log 2>/dev/null | tr ',' ' ' | sed 's/$/ '`date +%s`'/' | sort -k1,1) \
                             | sed "s/^/cloak-openvpn /" ;
+                        cat /opt/outline-ss-"${wgi}"/authdb.log | cut -d ' ' -f 1,4 | sed "s/^/outline-ss /" ;
                     ) | jq -c -R -s 'split("\n") | map(select(length > 0) | split(" ")) | map({ (.[1]): { (.[0]): {"timestamp": .[2]} } }) | reduce .[] as $item ({}; . *= $item) ' | tr -d '\n'
                     echo -n ", \"endpoints\": "
                     (
@@ -491,7 +497,8 @@ case "${t}" in
                             <(grep -rH '^#' /opt/openvpn-"${wgi}"/ccd/ 2>/dev/null | sed 's#^.*/\([^/]*\):\##\1 #' | sort -k3,3) \
                             <(cat /opt/cloak-"${wgi}"/userinfo/userauthdb.log 2>/dev/null | sort -k1,1) \
                             | sed "s/^/cloak-openvpn /" ;
-                    ) | sed 's#\.[0-9]*:[0-9]* #.0/24 #g' | sed 's#\.[0-9]*$#.0/24#g' \
+                        cat /opt/outline-ss-"${wgi}"/authdb.log | cut -d ' ' -f 1,3 | sed "s/^/outline-ss /" ;
+                    ) | sed 's#\.[0-9]*:[0-9]*#.0/24#g' | sed 's#\.[0-9]*$#.0/24#g' \
                         | jq -c -R -s 'split("\n") | map(select(length > 0) | split(" ")) | map({ (.[1]): { (.[0]): {"subnet": .[2]} } }) | reduce .[] as $item ({}; . *= $item) ' | tr -d '\n'
                     echo "}, \"timestamp\": \"$(date +%s)\"}"
                 fi
