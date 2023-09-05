@@ -18,7 +18,7 @@ ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -A OUTPUT
 ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -A OUTPUT -m owner --uid-owner outline-ss-admin -p tcp -d $(ip netns exec ns%i dig +short @1.1.1.1 vpn.works) --dport 443 -j DNAT --to-destination ${EXT_IP}:8443"
 ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -p tcp -s ${EXT_IP} -d ${EXT_IP} -m multiport --dports 8080,8443 -j ACCEPT"
 
-ExecStart=/usr/bin/unshare --mount /bin/bash -c "mount --bind /opt/outline-ss-%i/resolv.conf /etc/resolv.conf && /usr/bin/ip netns exec ns%i /usr/sbin/runuser -g nogroup -u outline-ss-admin -- /usr/sbin/outline-ss-server -replay_history=10000 -bind_addr=${EXT_IP} -metrics=127.0.0.1:$((OUTLINE_SS_PORT+1)) -config=/opt/outline-ss-%i/outline-ss-server-admin.config"
+ExecStart=/usr/bin/unshare --mount /bin/bash -c "mount --bind /opt/outline-ss-%i/resolv.conf /etc/resolv.conf && /usr/bin/ip netns exec ns%i /usr/sbin/runuser -g nogroup -u outline-ss-admin -- /usr/sbin/outline-ss-server -replay_history=10000 -bind_addr=${EXT_IP} -metrics=127.0.0.1:$((OUTLINE_SS_PORT+1)) -config=/opt/outline-ss-%i/outline-ss-server-admin.config -verbose"
 
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -D OUTPUT -m owner --uid-owner outline-ss-admin -p tcp -d $(ip netns exec ns%i dig +short @1.1.1.1 vpn.works) --dport 80 -j DNAT --to-destination ${EXT_IP}:8080 || true"
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -t nat -D OUTPUT -m owner --uid-owner outline-ss-admin -p tcp -d $(ip netns exec ns%i dig +short @1.1.1.1 vpn.works) --dport 443 -j DNAT --to-destination ${EXT_IP}:8443 || true"

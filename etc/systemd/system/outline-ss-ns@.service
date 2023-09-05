@@ -14,7 +14,7 @@ ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -d ${EX
 ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -d ${EXT_IP} -p udp --dport ${OUTLINE_SS_PORT} -j ACCEPT || true"
 ExecStartPre=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -A INPUT -d ${EXT_IP} -m state --state RELATED,ESTABLISHED -j ACCEPT || true"
 
-ExecStart=/usr/bin/unshare --mount /bin/bash -c "mount --bind /opt/outline-ss-%i/resolv.conf /etc/resolv.conf && /usr/bin/ip netns exec ns%i /usr/sbin/runuser -g nogroup -u nobody -- /usr/sbin/outline-ss-server -replay_history=10000 -bind_addr=${EXT_IP} -metrics=127.0.0.1:${OUTLINE_SS_PORT} -config=/opt/outline-ss-%i/outline-ss-server.config"
+ExecStart=/usr/bin/unshare --mount /bin/bash -c "mount --bind /opt/outline-ss-%i/resolv.conf /etc/resolv.conf && /usr/bin/ip netns exec ns%i /usr/sbin/runuser -g nogroup -u nobody -- /usr/sbin/outline-ss-server -replay_history=10000 -bind_addr=${EXT_IP} -metrics=127.0.0.1:${OUTLINE_SS_PORT} -config=/opt/outline-ss-%i/outline-ss-server.config -verbose"
 
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D INPUT -d ${EXT_IP} -m state --state RELATED,ESTABLISHED -j ACCEPT || true"
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns%i iptables -D INPUT -d ${EXT_IP} -p udp --dport ${OUTLINE_SS_PORT} -j ACCEPT || true"
