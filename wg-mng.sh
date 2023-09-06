@@ -37,6 +37,13 @@ function set_unset_bandwidth_limit {
         && unshare --mount /bin/bash -c "mount --bind /opt/openvpn-\"$1\"/hosts /etc/hosts && \
             ip netns exec \"ns$1\" su nobody -s /bin/bash /bin/bash -c \"/etc/openvpn/openvpn-tc.sh update $1 $2 $3 $4\""
 
+    [ -f /opt/outline-ss-"$1"/outline-ss-server-admin.config ] \
+        && sed -i '/^  - id: '"$2"'/,/^  - id: /{s/^    rate_limit: [0-9][0-9]*/    rate_limit: '"$4"'/}' /opt/outline-ss-"$1"/outline-ss-server-admin.config \
+        && fgrep -q "  - id: $2" /opt/outline-ss-"$1"/outline-ss-server-admin.config && /usr/bin/systemctl reload outline-ss-admin-ns@"$1"
+    [ -f /opt/outline-ss-"$1"/outline-ss-server.config ] \
+        && sed -i '/^  - id: '"$2"'/,/^  - id: /{s/^    rate_limit: [0-9][0-9]*/    rate_limit: '"$4"'/}' /opt/outline-ss-"$1"/outline-ss-server.config \
+        && fgrep -q "  - id: $2" /opt/outline-ss-"$1"/outline-ss-server.config && /usr/bin/systemctl reload outline-ss-ns@"$1"
+
     ip="`ip netns exec \"ns$1\" wg show \"$1\" allowed-ips | fgrep \"$2\" | cut -d $'\t' -f 2 | sed 's/^[^0-9]*\([0-9]*\.[0-9]*\.[0-9]*\.[0-9]*\).*$/\1/'`"
 
     ip_byte3=`echo "$ip" | cut -d . -f 3`
@@ -357,7 +364,7 @@ case "${t}" in
                             outline_ss_port=$((outline_ss_port+1))
                         fi
                         client_uid="`echo \"${f[0]}\" | sed 's/\//_/g;s/\+/-/g'`"
-                        echo -e "  - id: ${client_uid}\n    port: ${outline_ss_port}\n    cipher: chacha20-ietf-poly1305\n    secret: ${outline_ss_pwd}\n" >> /opt/outline-ss-"${wgi}"/outline-ss-server${outline_ss_config_suffix}.config
+                        echo -e "  - id: ${client_uid}\n    port: ${outline_ss_port}\n    cipher: chacha20-ietf-poly1305\n    secret: ${outline_ss_pwd}\n    rate_limit: 10240\n" >> /opt/outline-ss-"${wgi}"/outline-ss-server${outline_ss_config_suffix}.config
                         /usr/bin/systemctl reload outline-ss${outline_ss_config_suffix}-ns@"${wgi}"
                     fi
                     if [ ! -z "${cv6}" ]; then
