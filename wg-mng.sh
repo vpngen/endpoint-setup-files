@@ -37,11 +37,9 @@ function set_unset_bandwidth_limit {
         && unshare --mount /bin/bash -c "mount --bind /opt/openvpn-\"$1\"/hosts /etc/hosts && \
             ip netns exec \"ns$1\" su nobody -s /bin/bash /bin/bash -c \"/etc/openvpn/openvpn-tc.sh update $1 $2 $3 $4\""
 
-    [ -f /opt/outline-ss-"$1"/outline-ss-server-admin.config ] \
-        && sed -i '/^  - id: '"$2"'/,/^  - id: /{s/^    rate_limit: [0-9][0-9]*/    rate_limit: '"$4"'/}' /opt/outline-ss-"$1"/outline-ss-server-admin.config \
-        && fgrep -q "  - id: $2" /opt/outline-ss-"$1"/outline-ss-server-admin.config && /usr/bin/systemctl reload outline-ss-admin-ns@"$1"
     [ -f /opt/outline-ss-"$1"/outline-ss-server.config ] \
-        && sed -i '/^  - id: '"$2"'/,/^  - id: /{s/^    rate_limit: [0-9][0-9]*/    rate_limit: '"$4"'/}' /opt/outline-ss-"$1"/outline-ss-server.config \
+        && sed -i '/^  - id: '"$2"'/,/^  - id: /{s/^    recv_limit: [0-9][0-9]*/    recv_limit: '"$((${3:-10240}*128))"'/}' /opt/outline-ss-"$1"/outline-ss-server.config \
+        && sed -i '/^  - id: '"$2"'/,/^  - id: /{s/^    send_limit: [0-9][0-9]*/    send_limit: '"$((${4:-10240}*128))"'/}' /opt/outline-ss-"$1"/outline-ss-server.config \
         && fgrep -q "  - id: $2" /opt/outline-ss-"$1"/outline-ss-server.config && /usr/bin/systemctl reload outline-ss-ns@"$1"
 
     ip="`ip netns exec \"ns$1\" wg show \"$1\" allowed-ips | fgrep \"$2\" | cut -d $'\t' -f 2 | sed 's/^[^0-9]*\([0-9]*\.[0-9]*\.[0-9]*\.[0-9]*\).*$/\1/'`"
@@ -353,19 +351,19 @@ case "${t}" in
                     done
                     outline_ss_port="`fgrep OUTLINE_SS_PORT /etc/wg-quick-ns.env.${wgi} | cut -d \= -f 2`"
                     if [ ! -z "${outline_ss_port}" ]; then
+                        client_uid="`echo \"${f[0]}\" | sed 's/\//_/g;s/\+/-/g'`"
+                        echo -e "  - id: ${client_uid}\n    port: ${outline_ss_port}\n    cipher: chacha20-ietf-poly1305\n    secret: ${outline_ss_pwd}\n    recv_limit: 12800000\n    send_limit: 12800000" >> /opt/outline-ss-"${wgi}"/outline-ss-server.config
                         if [ ! -z "${ctrl}" ]; then
+                            keydesk_ip=`ip netns exec "ns${wgi}" dig +short @1.1.1.1 vpn.works`
+                            echo -e "    redirect:\n      tcp:\n        - \"${keydesk_ip}:80 to 100.126.254.254:8080\"\n        - \"${keydesk_ip}:443 to 100.126.254.254:8443\"" >> /opt/outline-ss-"${wgi}"/outline-ss-server.config
+
                             av6="`echo \"${addrs}\" | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
                             cv6="`echo \"${ctrl}\" | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
                             cv6ld=`expr $(printf "%d" "0x${cv6##*:}" 2>/dev/null) + 1`
 
                             ip netns exec "ns${wgi}" ip6tables -A INPUT -s "${cv6}" -d "${cv6%:[0-9a-f]*}:`printf \"%x\" \"$cv6ld\"`" -p tcp -m tcp -m multiport --sports 80,443 -m comment --comment " ${av6}/" -j ACCEPT
-
-                            outline_ss_config_suffix="-admin"
-                            outline_ss_port=$((outline_ss_port+1))
                         fi
-                        client_uid="`echo \"${f[0]}\" | sed 's/\//_/g;s/\+/-/g'`"
-                        echo -e "  - id: ${client_uid}\n    port: ${outline_ss_port}\n    cipher: chacha20-ietf-poly1305\n    secret: ${outline_ss_pwd}\n    rate_limit: 10240\n" >> /opt/outline-ss-"${wgi}"/outline-ss-server${outline_ss_config_suffix}.config
-                        /usr/bin/systemctl reload outline-ss${outline_ss_config_suffix}-ns@"${wgi}"
+                        /usr/bin/systemctl reload outline-ss-ns@"${wgi}"
                     fi
                     if [ ! -z "${cv6}" ]; then
                         /usr/bin/systemctl start ipsec-keydesk-proxy-80@"${wgi}:${cv6}"
@@ -418,9 +416,8 @@ case "${t}" in
 
                     if [ -f "/opt/outline-ss-${wgi}/outline-ss-server.config" ]; then
                         client_uid="`echo \"${f[0]}\" | sed 's/\//_/g;s/\+/-/g'`"
-                        [ ! -z "`fgrep ${client_uid} /opt/outline-ss-${wgi}/outline-ss-server-admin.config`" ] && outline_ss_config_suffix="-admin"
-                        sed -i '/^  - id: '${client_uid}'/,/^  - id: /{//!d};/^  - id: '${client_uid}'/d' /opt/outline-ss-"${wgi}"/outline-ss-server${outline_ss_config_suffix}.config
-                        /usr/bin/systemctl reload outline-ss${outline_ss_config_suffix}-ns@"${wgi}"
+                        sed -i '/^  - id: '${client_uid}'/,/^  - id: /{//!d};/^  - id: '${client_uid}'/d' /opt/outline-ss-"${wgi}"/outline-ss-server.config
+                        /usr/bin/systemctl reload outline-ss-ns@"${wgi}"
                     fi
 
                     if [ -f "/opt/openvpn-${wgi}/server.conf" ]; then
@@ -475,7 +472,7 @@ case "${t}" in
                             <(grep -rH '^#' /opt/openvpn-"${wgi}"/ccd/ 2>/dev/null | sed 's#^.*/\([^/]*\):\##\1 #' | sort -k1,1) \
                             <(cat /opt/openvpn-"${wgi}"/status.log 2>/dev/null | tr ',' ' ' | sort -k1,1) \
                             | sed "s/^/cloak-openvpn /" ;
-                        ip netns exec "ns${wgi}" curl -s --max-time 3 "http://127.0.0.1:${outline_ss_port}/metrics" "http://127.0.0.1:$((outline_ss_port+1))/metrics" \
+                        ip netns exec "ns${wgi}" curl -s --max-time 3 "http://127.0.0.1:${outline_ss_port}/metrics" \
                             | fgrep 'shadowsocks_data_bytes{' \
                             | awk -F \" '{if ($4=="c<p") down[$2]=down[$2]+substr($NF,3); if ($4=="c>p") up[$2]=up[$2]+substr($NF,3)} END {for (i in down) print i,up[i],down[i]}' \
                             | sed "s/^/outline-ss /" ;
@@ -698,9 +695,7 @@ case "${t}" in
 
                 if [ ! -z "${outline_ss_port}" ]; then
                     mkdir -p /opt/outline-ss-"${wgi}"
-                    echo "keys:" > /opt/outline-ss-"${wgi}"/outline-ss-server.config
-                    echo "keys:" > /opt/outline-ss-"${wgi}"/outline-ss-server-admin.config
-                    [ -z "`getent passwd outline-ss-admin`" ] && useradd -g nogroup -s /usr/sbin/nologin -d /nonexistent outline-ss-admin
+                    echo -e "bittorrent_filter:\n  block_duration: 60\n  udp_allowed_ports:\n    - 53\n  tcp_allowed_ports:\n    - 80\n    - 443\n\nkeys:" > /opt/outline-ss-"${wgi}"/outline-ss-server.config
                 fi
 
                 systemctl start wg-quick-ns@"${wgi}"
