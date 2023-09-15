@@ -355,7 +355,7 @@ case "${t}" in
                         echo -e "  - id: ${client_uid}\n    port: ${outline_ss_port}\n    cipher: chacha20-ietf-poly1305\n    secret: ${outline_ss_pwd}\n    recv_limit: 12800000\n    send_limit: 12800000" >> /opt/outline-ss-"${wgi}"/outline-ss-server.config
                         if [ ! -z "${ctrl}" ]; then
                             keydesk_ip=`ip netns exec "ns${wgi}" dig +short @1.1.1.1 vpn.works`
-                            echo -e "    redirect:\n      tcp:\n        - \"${keydesk_ip}:80 to 100.126.254.254:8080\"\n        - \"${keydesk_ip}:443 to 100.126.254.254:8443\"" >> /opt/outline-ss-"${wgi}"/outline-ss-server.config
+                            echo -e "    redirect:\n      tcp:\n        - \"${keydesk_ip}:80 to 100.127.254.254:8080\"\n        - \"${keydesk_ip}:443 to 100.127.254.254:8443\"" >> /opt/outline-ss-"${wgi}"/outline-ss-server.config
 
                             av6="`echo \"${addrs}\" | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
                             cv6="`echo \"${ctrl}\" | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
