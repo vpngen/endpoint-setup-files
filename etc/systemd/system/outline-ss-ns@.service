@@ -14,23 +14,23 @@ ExecStartPre=/bin/bash -c "ip netns exec ns%i iptables -A INPUT -d ${EXT_IP} -p 
 ExecStartPre=/bin/bash -c "ip netns exec ns%i iptables -A INPUT -d ${EXT_IP} -p udp --dport ${OUTLINE_SS_PORT} -j ACCEPT || true"
 ExecStartPre=/bin/bash -c "ip netns exec ns%i iptables -A INPUT -d ${EXT_IP} -m state --state RELATED,ESTABLISHED -j ACCEPT || true"
 
-ExecStartPre=/bin/bash -c "ip netns exec ns%i ip a add 100.127.254.254/32 dev ${EXT_DEV}"
-ExecStartPre=/bin/bash -c "ip netns exec ns%i iptables -A INPUT -s 100.127.254.254 -d 100.127.254.254 -p tcp -m multiport --dports 8080,8443 -j ACCEPT || true"
-ExecStartPre=/bin/bash -c "ip netns exec ns%i iptables -A INPUT -s 100.127.254.254 -d 100.127.254.254 -p tcp -m multiport --sports 8080,8443 -j ACCEPT || true"
+ExecStartPre=/bin/bash -c "ip netns exec ns%i ip a add 100.125.255.255/32 dev ${EXT_DEV}"
+ExecStartPre=/bin/bash -c "ip netns exec ns%i iptables -A INPUT -s 100.125.255.255 -d 100.125.255.255 -p tcp -m multiport --dports 8080,8443 -j ACCEPT || true"
+ExecStartPre=/bin/bash -c "ip netns exec ns%i iptables -A INPUT -s 100.125.255.255 -d 100.125.255.255 -p tcp -m multiport --sports 8080,8443 -j ACCEPT || true"
 
 ExecStartPre=/bin/bash -c "ip netns exec ns%i iptables -A INPUT -i lo -p tcp --dport ${OUTLINE_SS_PORT} -j ACCEPT"
 ExecStartPre=/bin/bash -c "ip netns exec ns%i iptables -A INPUT -i lo -p tcp --sport ${OUTLINE_SS_PORT} -j ACCEPT"
 
-ExecStartPre=/bin/bash -c "ip netns exec ns%i dig +short @1.1.1.1 vpn.works | xargs -I {} sed -i 's/[0-9\\.]*\\([:0-9]*\\) to 100.127.254.254/{}\\1 to 100.127.254.254/g' /opt/outline-ss-%i/outline-ss-server.config"
+ExecStartPre=/bin/bash -c "ip netns exec ns%i dig +short @1.1.1.1 vpn.works | xargs -I {} sed -i 's/[0-9\\.]*\\([:0-9]*\\) to 100.125.255.255/{}\\1 to 100.125.255.255/g' /opt/outline-ss-%i/outline-ss-server.config"
 
 ExecStart=unshare --mount /bin/bash -c "mount --bind /opt/outline-ss-%i/resolv.conf /etc/resolv.conf && ip netns exec ns%i /usr/sbin/runuser -g nogroup -u nobody -- /usr/sbin/outline-ss-server -replay_history=10000 -bind_addr=${EXT_IP} -metrics=127.0.0.1:${OUTLINE_SS_PORT} -config=/opt/outline-ss-%i/outline-ss-server.config -verbose"
 
 ExecStopPost=/bin/bash -c "ip netns exec ns%i iptables -D INPUT -i lo -p tcp --dport ${OUTLINE_SS_PORT} -j ACCEPT || true"
 ExecStopPost=/bin/bash -c "ip netns exec ns%i iptables -D INPUT -i lo -p tcp --sport ${OUTLINE_SS_PORT} -j ACCEPT || true"
 
-ExecStopPost=/bin/bash -c "ip netns exec ns%i iptables -D INPUT -s 100.127.254.254 -d 100.127.254.254 -p tcp -m multiport --sports 8080,8443 -j ACCEPT || true"
-ExecStopPost=/bin/bash -c "ip netns exec ns%i iptables -D INPUT -s 100.127.254.254 -d 100.127.254.254 -p tcp -m multiport --dports 8080,8443 -j ACCEPT || true"
-ExecStopPost=/bin/bash -c "ip netns exec ns%i ip a del 100.127.254.254/32 dev ${EXT_DEV}"
+ExecStopPost=/bin/bash -c "ip netns exec ns%i iptables -D INPUT -s 100.125.255.255 -d 100.125.255.255 -p tcp -m multiport --sports 8080,8443 -j ACCEPT || true"
+ExecStopPost=/bin/bash -c "ip netns exec ns%i iptables -D INPUT -s 100.125.255.255 -d 100.125.255.255 -p tcp -m multiport --dports 8080,8443 -j ACCEPT || true"
+ExecStopPost=/bin/bash -c "ip netns exec ns%i ip a del 100.125.255.255/32 dev ${EXT_DEV}"
 
 ExecStopPost=/bin/bash -c "ip netns exec ns%i iptables -D INPUT -d ${EXT_IP} -m state --state RELATED,ESTABLISHED -j ACCEPT || true"
 ExecStopPost=/bin/bash -c "ip netns exec ns%i iptables -D INPUT -d ${EXT_IP} -p udp --dport ${OUTLINE_SS_PORT} -j ACCEPT || true"
