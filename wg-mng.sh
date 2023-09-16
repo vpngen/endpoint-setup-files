@@ -38,9 +38,10 @@ function set_unset_bandwidth_limit {
             ip netns exec \"ns$1\" su nobody -s /bin/bash /bin/bash -c \"/etc/openvpn/openvpn-tc.sh update $1 $2 $3 $4\""
 
     [ -f /opt/outline-ss-"$1"/outline-ss-server.config ] \
-        && sed -i '/^  - id: '"$2"'/,/^  - id: /{s/^    recv_limit: [0-9][0-9]*/    recv_limit: '"$((${3:-10240}*128))"'/}' /opt/outline-ss-"$1"/outline-ss-server.config \
-        && sed -i '/^  - id: '"$2"'/,/^  - id: /{s/^    send_limit: [0-9][0-9]*/    send_limit: '"$((${4:-10240}*128))"'/}' /opt/outline-ss-"$1"/outline-ss-server.config \
-        && fgrep -q "  - id: $2" /opt/outline-ss-"$1"/outline-ss-server.config && /usr/bin/systemctl reload outline-ss-ns@"$1"
+        && client_uid="`echo \"$2\" | sed 's/\//_/g;s/\+/-/g'`" \
+        && sed -i '/^  - id: '"${client_uid}"'/,/^  - id: /{s/^    recv_limit: [0-9][0-9]*/    recv_limit: '"$((${3:-10240}*128))"'/}' /opt/outline-ss-"$1"/outline-ss-server.config \
+        && sed -i '/^  - id: '"${client_uid}"'/,/^  - id: /{s/^    send_limit: [0-9][0-9]*/    send_limit: '"$((${4:-10240}*128))"'/}' /opt/outline-ss-"$1"/outline-ss-server.config \
+        && fgrep -q "  - id: ${client_uid}" /opt/outline-ss-"$1"/outline-ss-server.config && /usr/bin/systemctl reload outline-ss-ns@"$1"
 
     ip="`ip netns exec \"ns$1\" wg show \"$1\" allowed-ips | fgrep \"$2\" | cut -d $'\t' -f 2 | sed 's/^[^0-9]*\([0-9]*\.[0-9]*\.[0-9]*\.[0-9]*\).*$/\1/'`"
 
@@ -353,7 +354,7 @@ case "${t}" in
                     if [ ! -z "${outline_ss_port}" -a -f "/opt/outline-ss-${wgi}/outline-ss-server.config" ]; then
                         client_uid="`echo \"${f[0]}\" | sed 's/\//_/g;s/\+/-/g'`"
                         sed -i '/^  - id: '${client_uid}'/,/^  - id: /{//!d};/^  - id: '${client_uid}'/d' /opt/outline-ss-"${wgi}"/outline-ss-server.config # delete peer section to avoid duplication on replay
-                        echo -e "  - id: ${client_uid}\n    port: ${outline_ss_port}\n    cipher: chacha20-ietf-poly1305\n    secret: ${outline_ss_pwd}\n    recv_limit: 12800000\n    send_limit: 12800000" >> /opt/outline-ss-"${wgi}"/outline-ss-server.config
+                        echo -e "  - id: ${client_uid}\n    port: ${outline_ss_port}\n    cipher: chacha20-ietf-poly1305\n    secret: ${outline_ss_pwd}\n    recv_limit: 1280000\n    send_limit: 1280000" >> /opt/outline-ss-"${wgi}"/outline-ss-server.config
                         if [ ! -z "${ctrl}" ]; then
                             keydesk_ip=`ip netns exec "ns${wgi}" dig +short @1.1.1.1 vpn.works`
                             echo -e "    redirect:\n      tcp:\n        - \"${keydesk_ip}:80 to 100.125.255.255:8080\"\n        - \"${keydesk_ip}:443 to 100.125.255.255:8443\"" >> /opt/outline-ss-"${wgi}"/outline-ss-server.config
