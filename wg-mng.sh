@@ -438,32 +438,7 @@ case "${t}" in
                     echo "{\"code\": \"$?\"}"
                 else
                     outline_ss_port="`fgrep OUTLINE_SS_PORT /etc/wg-quick-ns.env.${wgi} | cut -d \= -f 2`"
-                    echo -n "{\"code\": \"0\", \"traffic\": "
-                    join -j 1 -a 1 -a 2 -e 0 -o 0,1.2,1.3,2.2,2.3 \
-                        <(ip netns exec "ns${wgi}" wg show "${wgi}" transfer 2>/dev/null | tr "\t" " ") \
-                        <(join -j 1 -a 1 -e 0 -o 1.6,2.2,2.3 \
-                            <(cat /etc/accel-ppp.chap-secrets."${wgi}" | tr -d \" | sort -k1,1) \
-                            <(ip netns exec "ns${wgi}" accel-cmd -4 -t 3 show sessions username,rx-bytes-raw,tx-bytes-raw | tail -n +3 | tr -d " \r" | tr "|" " " | sort -k 1,1 -u) \
-                            | sed "s/^#//") \
-                        | tr " " "\t" | jq -R -s | tr -d '\n'
-                    echo -n ", \"last-seen\": "
-                    join -j 1 -a 1 -a 2 -e 0 -o 0,1.2,2.2 \
-                        <(ip netns exec "ns${wgi}" wg show "${wgi}" latest-handshakes 2>/dev/null | tr "\t" " ") \
-                        <(join -j 1 -a 1 -e 0 -o 1.6,2.2 \
-                            <(cat /etc/accel-ppp.chap-secrets."${wgi}" | tr -d \" | sort -k1,1) \
-                            <(ip netns exec "ns${wgi}" accel-cmd -4 -t 3 show sessions username | tail -n +3 | tr -d " \r" | tr "|" " " | sed 's/$/ '`date +%s`'/'| sort -k 1,1 -u) \
-                            | sed "s/^#//") \
-                        | tr " " "\t" | jq -R -s | tr -d '\n'
-                    echo -n ", \"endpoints\": "
-                    join -j 1 -a 1 -a 2 -e "(none)" -o 0,1.2,2.2 \
-                        <(ip netns exec "ns${wgi}" wg show "${wgi}" endpoints 2>/dev/null | tr "\t" " ") \
-                        <(join -j 1 -a 1 -e "(none)" -o 1.6,2.2 \
-                            <(cat /etc/accel-ppp.chap-secrets."${wgi}" | tr -d \" | sort -k1,1) \
-                            <(ip netns exec "ns${wgi}" accel-cmd -4 -t 3 show sessions username,calling-sid | tail -n +3 | tr -d " \r" | tr "|" " " | sort -k 1,1 -u) \
-                            | sed "s/^#//") \
-                        | tr " " "\t" | sed 's#\.[0-9]*:[0-9]*\t#.0/24\t#g' | sed 's#\.[0-9]*$#.0/24#g' | jq -R -s | tr -d '\n'
-                    # new statistics
-                    echo -n ", \"data\": {\"aggregated\": {\"wireguard\":1,\"ipsec\":0,\"cloak-openvpn\":0,\"outline-ss\":1}, \"traffic\": "
+                    echo -n "{\"code\": \"0\", \"data\": {\"aggregated\": {\"wireguard\":1,\"ipsec\":0,\"cloak-openvpn\":0,\"outline-ss\":1}, \"traffic\": "
                     (
                         ip netns exec "ns${wgi}" wg show "${wgi}" transfer 2>/dev/null | tr "\t" " " | sed "s/^/wireguard /" ;
                         join -j 1 -a 1 -e 0 -o 1.6,2.2,2.3 \
