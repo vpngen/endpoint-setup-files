@@ -465,7 +465,7 @@ case "${t}" in
                             <(grep -rH '^#' /opt/openvpn-"${wgi}"/ccd/ 2>/dev/null | sed 's#^.*/\([^/]*\):\##\1 #' | sort -k1,1) \
                             <(cat /opt/openvpn-"${wgi}"/status.log 2>/dev/null | tr ',' ' ' | sed 's/$/ '`date +%s`'/' | sort -k1,1) \
                             | sed "s/^/cloak-openvpn /" ;
-                        cat /opt/outline-ss-"${wgi}"/authdb.log | cut -d ' ' -f 1,4 | sed "s/^/outline-ss /" ;
+                        cat /opt/outline-ss-"${wgi}"/authdb.log 2>/dev/null | cut -d ' ' -f 1,4 | sed "s/^/outline-ss /" ;
                     ) | jq -c -R -s 'split("\n") | map(select(length > 0) | split(" ")) | map({ (.[1]): { (.[0]): {"timestamp": .[2]} } }) | reduce .[] as $item ({}; . *= $item) ' | tr -d '\n'
                     echo -n ", \"endpoints\": "
                     (
@@ -478,7 +478,7 @@ case "${t}" in
                             <(grep -rH '^#' /opt/openvpn-"${wgi}"/ccd/ 2>/dev/null | sed 's#^.*/\([^/]*\):\##\1 #' | sort -k3,3) \
                             <(cat /opt/cloak-"${wgi}"/userinfo/userauthdb.log 2>/dev/null | sort -k1,1) \
                             | sed "s/^/cloak-openvpn /" ;
-                        cat /opt/outline-ss-"${wgi}"/authdb.log | cut -d ' ' -f 1,3 | sed "s/^/outline-ss /" ;
+                        cat /opt/outline-ss-"${wgi}"/authdb.log 2>/dev/null | cut -d ' ' -f 1,3 | sed "s/^/outline-ss /" ;
                     ) | sed 's#\.[0-9]*:[0-9]*#.0/24#g' | sed 's#\.[0-9]*$#.0/24#g' \
                         | jq -c -R -s 'split("\n") | map(select(length > 0) | split(" ")) | map({ (.[1]): { (.[0]): {"subnet": .[2]} } }) | reduce .[] as $item ({}; . *= $item) ' | tr -d '\n'
                     echo "}, \"timestamp\": \"$(date +%s)\"}"
