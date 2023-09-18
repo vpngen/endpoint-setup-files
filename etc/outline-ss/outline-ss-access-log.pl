@@ -22,7 +22,7 @@ while (my $line = <STDIN>) {
         my ($dx) = $line =~ m/\-ns\-([^[]+)/;
         if (($db{$dt}) && (defined $ARGV[0]) && (defined $ARGV[1])) {
             open my $in,  '<', "$ARGV[0]-$dx/$ARGV[1]";
-            open my $out, '>', "$ARGV[0]-$dx/$ARGV[1].new" or die "Can't write new file: $!";
+            open my $out, '>', "$ARGV[0]-$dx/$ARGV[1].new" or close $in, next;
 
             my ($found_last_minute) = "";
             my ($current_last_minute) = "";
@@ -37,12 +37,14 @@ while (my $line = <STDIN>) {
                 print $out $_;
             }
             if (not($found_last_minute eq "") && ($found_last_minute eq $current_last_minute)) {
+                close $in;
                 close $out;
                 unlink "$ARGV[0]-$dx/$ARGV[1].new";
             } else {
                 my @dts = split /[\-T:\.]/, $dt;
                 print $out $db{$dt}, " ", $dt, " ", $ip, " ", timegm($dts[5], $dts[4], $dts[3], $dts[2], $dts[1], $dts[0]), "\n";
 
+                close $in;
                 close $out;
                 unlink "$ARGV[0]-$dx/$ARGV[1]";
                 rename "$ARGV[0]-$dx/$ARGV[1].new", "$ARGV[0]-$dx/$ARGV[1]";
