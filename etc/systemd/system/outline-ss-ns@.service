@@ -9,6 +9,8 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=outline-ss-ns-%i
 
+LimitNOFILE=1048576
+
 ExecStartPre=/bin/bash -c "test -f /opt/outline-ss-%i/resolv.conf ||  echo \"nameserver 1.1.1.1\" > /opt/outline-ss-%i/resolv.conf"
 ExecStartPre=/bin/bash -c "ip netns exec ns%i iptables -A INPUT -d ${EXT_IP} -p tcp --dport ${OUTLINE_SS_PORT} -j ACCEPT || true"
 ExecStartPre=/bin/bash -c "ip netns exec ns%i iptables -A INPUT -d ${EXT_IP} -p udp --dport ${OUTLINE_SS_PORT} -j ACCEPT || true"
