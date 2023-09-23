@@ -42,7 +42,7 @@ while (my $line = <STDIN>) {
                 unlink "$ARGV[0]-$dx/$ARGV[1].new";
             } else {
                 my @dts = split /[\-T:\.]/, $dt;
-                print $out $db{$dt}, " ", $dt, " ", $ip, " ", timegm($dts[5], $dts[4], $dts[3], $dts[2], $dts[1], $dts[0]), "\n";
+                print $out $db{$dt}, " ", $dt, " ", $ip, " ", timegm($dts[5], $dts[4], $dts[3], $dts[2], $dts[1] - 1, $dts[0]), "\n";
 
                 close $in;
                 close $out;
