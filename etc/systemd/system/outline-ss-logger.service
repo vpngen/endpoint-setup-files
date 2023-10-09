@@ -11,7 +11,7 @@ ExecStartPre=mkfifo -m 0666 /var/run/outline-ss-logger.pipe ; killall -HUP rsysl
 
 ExecStart=/bin/bash -c "cat /var/run/outline-ss-logger.pipe | /etc/outline-ss/outline-ss-access-log.pl /opt/outline-ss authdb.log"
 
-ExecStop=rm -f /var/run/outline-ss-logger.pipe ; killall -HUP rsyslogd
+ExecStopPost=rm -f /var/run/outline-ss-logger.pipe ; killall -HUP rsyslogd
 
 Type=simple
 Restart=always
