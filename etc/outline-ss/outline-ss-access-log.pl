@@ -37,6 +37,7 @@ while (my $line = <STDIN>) {
                 print $out $_;
             }
             if (not($found_last_minute eq "") && ($found_last_minute eq $current_last_minute)) {
+                delete($db{$dt});
                 close $in;
                 close $out;
                 unlink "$ARGV[0]-$dx/$ARGV[1].new";
@@ -44,6 +45,7 @@ while (my $line = <STDIN>) {
                 my @dts = split /[\-T:\.]/, $dt;
                 print $out $db{$dt}, " ", $dt, " ", $ip, " ", timegm($dts[5], $dts[4], $dts[3], $dts[2], $dts[1] - 1, $dts[0]), "\n";
 
+                delete($db{$dt});
                 close $in;
                 close $out;
                 unlink "$ARGV[0]-$dx/$ARGV[1]";
