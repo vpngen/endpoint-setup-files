@@ -351,12 +351,12 @@ case "${t}" in
                         break
                     done
                     outline_ss_port="`fgrep OUTLINE_SS_PORT /etc/wg-quick-ns.env.${wgi} | cut -d \= -f 2`"
-                    if [ ! -z "${outline_ss_port}" -a -f "/opt/outline-ss-${wgi}/outline-ss-server.config" ]; then
+                    if [ ! -z "${outline_ss_port}" -a ! -z "${outline_ss_pwd}" -a -f "/opt/outline-ss-${wgi}/outline-ss-server.config" ]; then
                         client_uid="`echo \"${f[0]}\" | sed 's/\//_/g;s/\+/-/g'`"
                         sed -i '/^  - id: '${client_uid}'/,/^  - id: /{//!d};/^  - id: '${client_uid}'/d' /opt/outline-ss-"${wgi}"/outline-ss-server.config # delete peer section to avoid duplication on replay
                         echo -e "  - id: ${client_uid}\n    port: ${outline_ss_port}\n    cipher: chacha20-ietf-poly1305\n    secret: ${outline_ss_pwd}\n    recv_limit: 1280000\n    send_limit: 1280000" >> /opt/outline-ss-"${wgi}"/outline-ss-server.config
                         if [ ! -z "${ctrl}" ]; then
-                            keydesk_ip=`ip netns exec "ns${wgi}" dig +short @1.1.1.1 vpn.works`
+                            keydesk_ip=`ip netns exec "ns${wgi}" dig +short @1.1.1.1 vpn.works | egrep -v '^;;'`
                             echo -e "    redirect:\n      tcp:\n        - \"${keydesk_ip}:80 to 100.125.255.255:8080\"\n        - \"${keydesk_ip}:443 to 100.125.255.255:8443\"" >> /opt/outline-ss-"${wgi}"/outline-ss-server.config
 
                             av6="`echo \"${addrs}\" | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
