@@ -7,11 +7,11 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=outline-ss-logger
 
-ExecStartPre=mkfifo -m 0666 /var/run/outline-ss-logger.pipe ; killall -HUP rsyslogd
+ExecStartPre=mkfifo -m 0666 /var/run/outline-ss-logger.pipe ; pkill -HUP rsyslogd
 
 ExecStart=/bin/bash -c "cat /var/run/outline-ss-logger.pipe | /etc/outline-ss/outline-ss-access-log.pl /opt/outline-ss authdb.log"
 
-ExecStopPost=rm -f /var/run/outline-ss-logger.pipe ; killall -HUP rsyslogd
+ExecStopPost=rm -f /var/run/outline-ss-logger.pipe ; pkill -HUP rsyslogd
 
 Type=simple
 Restart=always
