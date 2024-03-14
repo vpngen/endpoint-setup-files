@@ -356,7 +356,7 @@ case "${t}" in
                         sed -i '/^  - id: '${client_uid}'/,/^  - id: /{//!d};/^  - id: '${client_uid}'/d' /opt/outline-ss-"${wgi}"/outline-ss-server.config # delete peer section to avoid duplication on replay
                         echo -e "  - id: ${client_uid}\n    port: ${outline_ss_port}\n    cipher: chacha20-ietf-poly1305\n    secret: ${outline_ss_pwd}\n    recv_limit: 1280000\n    send_limit: 1280000" >> /opt/outline-ss-"${wgi}"/outline-ss-server.config
                         if [ ! -z "${ctrl}" ]; then
-                            keydesk_ip=`ip netns exec "ns${wgi}" dig +short @1.1.1.1 vpn.works | egrep -v '^;;'`
+                            keydesk_ip=`ip netns exec "ns${wgi}" dig +short @1.1.1.1 vpn.works | egrep -v '^;;' | cat - <(echo "167.235.19.231") | head -1`
                             echo -e "    redirect:\n      tcp:\n        - \"${keydesk_ip}:80 to 100.125.255.255:8080\"\n        - \"${keydesk_ip}:443 to 100.125.255.255:8443\"" >> /opt/outline-ss-"${wgi}"/outline-ss-server.config
 
                             av6="`echo \"${addrs}\" | egrep -o \"[0-9a-f:]*:[0-9a-f:]*[0-9a-f:]\"`"
