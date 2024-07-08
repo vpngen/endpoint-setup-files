@@ -437,6 +437,9 @@ case "${t}" in
                     [ $? -eq 0 ] && replay_log "${t}" "${f[0]}" "${wgi}" "${b}"
                     echo "{\"code\": \"$?\"}"
                 else
+                    # INFO: use new statistics executable and exit
+                    [ -x "/stats" ] && /stats -wgi "${wgi}" && exit 0
+
                     outline_ss_port="`fgrep OUTLINE_SS_PORT /etc/wg-quick-ns.env.${wgi} | cut -d \= -f 2`"
                     echo -n "{\"code\": \"0\", \"data\": {\"aggregated\": {\"wireguard\":1,\"ipsec\":0,\"cloak-openvpn\":0,\"outline-ss\":1}, \"traffic\": "
                     (
