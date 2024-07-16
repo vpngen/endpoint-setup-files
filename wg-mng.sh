@@ -660,7 +660,11 @@ case "${t}" in
                     mkdir -p /opt/cloak-"${wgi}"/userinfo
                     chmod 1777 /opt/cloak-"${wgi}"/userinfo
 
-                    cp -f /etc/cloak/ck-server.json.tpl /opt/cloak-"${wgi}"/ck-server.json
+                    if [ ! -z "${outline_ss_port}" ]; then
+                        jq '.ProxyBook += {"shadowsocks":["tcp","localhost:'"${outline_ss_port}"'"]}' /etc/cloak/ck-server.json.tpl > /opt/cloak-"${wgi}"/ck-server.json
+                    else
+                        cp -f /etc/cloak/ck-server.json.tpl /opt/cloak-"${wgi}"/ck-server.json
+                    fi
                     sed -i "s#\${cloak_admin_uid}#${cloak_admin_uid}#g" /opt/cloak-"${wgi}"/ck-server.json
                     sed -i "s#\${cloak_domain}#${cloak_domain:-yandex.com}#g" /opt/cloak-"${wgi}"/ck-server.json
                     sed -i "s#\${cloak_private_key}#${f[0]}#g" /opt/cloak-"${wgi}"/ck-server.json
