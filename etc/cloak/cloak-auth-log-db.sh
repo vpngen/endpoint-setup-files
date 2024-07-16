@@ -13,7 +13,7 @@ case "$1" in
         uid="`egrep -o \" UID=[^ ]*\" <<< \"$1\" | cut -d \\\" -f 2`"
         addr="`egrep -o \" remoteAddr=[^:]*\" <<< \"$1\" | cut -d \\\" -f 2`"
     ;;
-    *' msg="Session closed" '* | *' msg="Terminating active user" '*)
+    *' msg="Terminating active user" '*)
         ns="`egrep -o \" cloak-ns-[^\[]*\" <<< \"$1\" | cut -d \- -f 3`"
         uid="`egrep -o \" UID=[^ ]*\" <<< \"$1\" | cut -d \\\" -f 2`"
     ;;
