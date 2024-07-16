@@ -23,7 +23,7 @@ ExecStartPre=/bin/bash -c "ip netns exec ns%i iptables -A INPUT -s 100.125.255.2
 ExecStartPre=/bin/bash -c "ip netns exec ns%i iptables -A INPUT -i lo -p tcp --dport ${OUTLINE_SS_PORT} -j ACCEPT"
 ExecStartPre=/bin/bash -c "ip netns exec ns%i iptables -A INPUT -i lo -p tcp --sport ${OUTLINE_SS_PORT} -j ACCEPT"
 
-ExecStartPre=/bin/bash -c "ip netns exec ns%i dig +short @1.1.1.1 vpn.works | egrep -v '^;;' | cat - <(echo '167.235.19.231') | head -1 | xargs -I {} sed -i 's/[0-9\\.]*\\([:0-9]*\\) to 100.125.255.255/{}\\1 to 100.125.255.255/g' /opt/outline-ss-%i/outline-ss-server.config"
+ExecStartPre=/bin/bash -c "ip netns exec ns%i dig +short @1.1.1.1 vpn.works | egrep -v '^;;' | cat - <(echo '167.235.19.231') | xargs | head -1 | xargs -I {} sed -i 's/[0-9\\.]*\\([:0-9]*\\) to 100.125.255.255/{}\\1 to 100.125.255.255/g' /opt/outline-ss-%i/outline-ss-server.config"
 
 ExecStart=unshare --mount /bin/bash -c "mount --bind /opt/outline-ss-%i/resolv.conf /etc/resolv.conf && ip netns exec ns%i /usr/sbin/runuser -g nogroup -u nobody -- /usr/sbin/outline-ss-server -replay_history=10000 -bind_addr=${EXT_IP} -metrics=127.0.0.1:${OUTLINE_SS_PORT} -config=/opt/outline-ss-%i/outline-ss-server.config -verbose"
 
