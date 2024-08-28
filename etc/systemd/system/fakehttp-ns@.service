@@ -9,7 +9,89 @@ Type=forking
 Restart=always
 StandardOutput=null
 
-Environment="NGINXCONF=user www-data; worker_processes 1; pid /run/nginx._PID_.pid; events { } http { server_tokens off; gzip on; server { listen _IP_:80; location / { return 301 https://$host$request_uri; } } }"
+Environment="NGINXCONF= \
+user www-data; \
+worker_processes 1; \
+pid /run/nginx._PID_.pid; \
+include /etc/nginx/modules-enabled/*.conf; \
+events { } \
+http { \
+    root /var/www/html; \
+    server_tokens off; \
+    gzip on; \
+    map $uri $redirect_scheme { ~^/(vgc|g19):/[^/]+$ $1; ~^/(ss):/ $1; default \"\"; } \
+    map $request_uri $redirect_uri { ~%%3A//([^?]*) $1; ~%%3A%%2F/([^?]*) $1; ~%%3A/%%2F([^?]*) $1; ~%%3A%%2F%%2F([^?]*) $1; ~://([^?]*) $1; ~:%%2F/([^?]*) $1; ~:/%%2F([^?]*) $1; ~:%%2F%%2F([^?]*) $1; default \"\"; } \
+    map $http_user_agent $store_vgc { ~(iPad|iPhone|iPod) \"\"; ~(Android_REMOVE_ME_) \"https://play.google.com/store/apps/details?id=org.iedn.vpngenerator&referrer=vgc%%3D\"; default \"\"; } \
+    map $http_user_agent $store_g19 { ~(iPad|iPhone|iPod) \"\"; ~(Android_REMOVE_ME_) \"https://play.google.com/store/apps/details?id=org.stayconnected.gate19&referrer=g19%%3D\"; default \"\"; } \
+    map $redirect_scheme $redirect_scheme_host { \"vgc\" $store_vgc; \"g19\" $store_g19; default \"\"; } \
+    server { \
+        listen _IP_:80; \
+        error_page 404 https://$host$request_uri; \
+        location ~ ^/ss:/ { \
+            if ($arg_no_page) { return 302 $redirect_scheme://$redirect_uri; } \
+            try_files /$redirect_scheme.html =404; \
+        } \
+        location ~ ^/(?:vgc|g19):/ { \
+            perl \"sub { \
+                my $r = shift; \
+ \
+                my @base58 = split //, '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'; \
+                my %%base58 = map { $base58[$_] , $_} 0 .. 57; \
+ \
+                use integer; \
+                my @out; \
+                for my $letter ( split //, ($r->uri =~ /:\\/(.*?)$/)[0] ) { \
+                    $_ *= 58 for @out; \
+                    $out[0] += $base58{$letter}; \
+                    for my $index ( 0 .. $#out ) { \
+                        my $val = $out[$index]; \
+                        if ($val > 255) { \
+                            $out[$index] = $val %% 256; \
+                            $out[$index + 1] += $val / 256; \
+                        } \
+                    } \
+                } \
+                my $out_gz = join '', map chr, reverse @out; \
+ \
+                use IO::Uncompress::Gunzip; \
+                my $conf_json, $conf; \
+                IO::Uncompress::Gunzip::gunzip \\$out_gz => \\$conf_json; \
+ \
+                use JSON; \
+                my $conf; \
+                eval { \
+                    $conf = JSON::decode_json($conf_json); \
+                } or return HTTP_NOT_FOUND; \
+ \
+                return HTTP_NOT_FOUND \
+                    if ($conf->{'cloak'}{'RemoteHost'} ne $r->header_in('Host') \
+                        and $conf->{'shadowsocks'}{'host'} ne $r->header_in('Host')); \
+ \
+                if ($r->variable('arg_no_page')) { \
+                    $r->header_out('Location', $r->variable('redirect_scheme').'://'.$r->variable('redirect_uri')); \
+                    return HTTP_MOVED_TEMPORARILY; \
+                } \
+ \
+                if ($r->variable('redirect_scheme_host')) { \
+                    $r->header_out('Location', $r->variable('redirect_scheme_host').$r->variable('redirect_scheme').'://'.$r->variable('redirect_uri')); \
+                    return HTTP_MOVED_TEMPORARILY; \
+                } \
+ \
+                my ($scheme_path) = $r->filename =~ /^(.*?):\\//; \
+ \
+                return HTTP_NOT_FOUND \
+                    if (not -f $scheme_path.'.html'); \
+ \
+                $r->send_http_header('text/html'); \
+                $r->sendfile($scheme_path.'.html') \
+                    if (not $r->header_only); \
+                return OK; \
+            }\"; \
+        } \
+        location / { return 404; } \
+    } \
+} \
+"
 Environment="ifwg=%i"
 
 ExecStartPre=/bin/bash -c "echo $NGINXCONF | sed \"s/_IP_/`/usr/bin/ip netns exec ns${ifwg##*:} /usr/bin/ip -4 -o a | fgrep ${ifwg%%:*} | cut -d ' ' -f 7 | cut -d / -f 1 | head -1`/g\" | sed \"s/_PID_/${ifwg##*:}/g\" > /etc/nginx/nginx.${ifwg##*:}.conf"
@@ -24,6 +106,7 @@ ExecStopPost=/bin/bash -c "rm -f /etc/nginx/nginx.${ifwg##*:}.conf"
 ExecStopPost=/bin/bash -c "/usr/bin/ip netns exec ns${ifwg##*:} iptables -D INPUT -i ${ifwg%%:*} -p tcp --dport 80 -j ACCEPT || true"
 
 TimeoutStopSec=5
+RestartSec=1s
 
 [Install]
 WantedBy=multi-user.target
