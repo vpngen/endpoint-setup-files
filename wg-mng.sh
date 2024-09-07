@@ -661,7 +661,7 @@ case "${t}" in
                     chmod 1777 /opt/cloak-"${wgi}"/userinfo
 
                     if [ ! -z "${outline_ss_port}" ]; then
-                        jq '.ProxyBook += {"shadowsocks":["tcp","localhost:'"${outline_ss_port}"'"]}' /etc/cloak/ck-server.json.tpl > /opt/cloak-"${wgi}"/ck-server.json
+                        jq '.ProxyBook += {"shadowsocks":["tcp","'"${ext_ip_nm%%/[0-9]*}"':'"${outline_ss_port}"'"]}' /etc/cloak/ck-server.json.tpl > /opt/cloak-"${wgi}"/ck-server.json
                     else
                         cp -f /etc/cloak/ck-server.json.tpl /opt/cloak-"${wgi}"/ck-server.json
                     fi
