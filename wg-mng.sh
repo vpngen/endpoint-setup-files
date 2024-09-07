@@ -741,6 +741,8 @@ case "${t}" in
                         if [ $i -ge 300 ]; then
                             echo "{\"code\": \"146\", \"error\": \"interface did not come back to system namespace\"}"
                             exit 0
+                        elif [ $i -eq 250 ]; then
+                            ps ax | grep "${wgi}[^0-9]" | grep -v grep | awk '{print $1}' | xargs kill -9
                         fi
                         i=$((i+1))
                     done
