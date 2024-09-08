@@ -8,16 +8,19 @@ StartLimitIntervalSec=0
 Type=forking
 Restart=always
 StandardOutput=null
+StandardError=journal
 
 Environment="NGINXCONF= \
 user www-data; \
 worker_processes 1; \
 pid /run/nginx._PID_.pid; \
+error_log stderr; \
 include /etc/nginx/modules-enabled/*.conf; \
 events { } \
 http { \
     root /var/www/html; \
     server_tokens off; \
+    access_log off; \
     gzip on; \
     map $uri $redirect_scheme { ~^/(vgc|g19):/[^/]+$ $1; ~^/(ss):/ $1; default \"\"; } \
     map $request_uri $redirect_uri { ~%%3A//([^?]*) $1; ~%%3A%%2F/([^?]*) $1; ~%%3A/%%2F([^?]*) $1; ~%%3A%%2F%%2F([^?]*) $1; ~://([^?]*) $1; ~:%%2F/([^?]*) $1; ~:/%%2F([^?]*) $1; ~:%%2F%%2F([^?]*) $1; default \"\"; } \
