@@ -694,7 +694,7 @@ case "${t}" in
                 if [ -z "${f[0]}" ]; then
                     echo "{\"code\": \"130\", \"error\": \"Wireguard interface private key is not defined\"}"
                     exit 0
-                else
+                elif [ "$1" != "maintenance" ]; then
                     f[0]=`ud_b64 "${f[0]}"`
                     nacl_d "${f[0]}" "Wireguard interface private key" 32 32
                     f[0]="${nacl_d_ret}"
