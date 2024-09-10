@@ -2,7 +2,8 @@
 Description=FakeHTTP for namespaced interface %I
 Requires=network.target
 After=network.target
-StartLimitIntervalSec=0
+StartLimitIntervalSec=30
+StartLimitBurst=5
 
 [Service]
 Type=forking
