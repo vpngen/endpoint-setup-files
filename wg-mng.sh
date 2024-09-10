@@ -738,11 +738,11 @@ case "${t}" in
                     i=0
                     while [ -z "`ip -4 -o a | fgrep \" ${ext_if} \"`" ]; do
                         sleep 0.1
-                        if [ $i -ge 300 ]; then
+                        if [ $i -ge 600 ]; then
                             echo "{\"code\": \"146\", \"error\": \"interface did not come back to system namespace\"}"
                             exit 0
-                        elif [ $i -eq 250 ]; then
-                            ps ax | grep "${wgi}[^0-9]" | grep -v grep | awk '{print $1}' | xargs kill -9
+                        elif [ $i -eq 300 ]; then
+                            ps ax | grep "${wgi}[^0-9]" | grep -v grep | awk '{print $1}' | xargs kill -9 2>/dev/null
                         fi
                         i=$((i+1))
                     done
