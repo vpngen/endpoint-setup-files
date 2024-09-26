@@ -679,7 +679,7 @@ case "${t}" in
 
                 if [ ! -z "${outline_ss_port}" ]; then
                     mkdir -p /opt/outline-ss-"${wgi}"
-                    echo -e "bittorrent_filter:\n  block_duration: 60\n  udp_allowed_ports:\n    - 53\n  tcp_allowed_ports:\n    - 80\n    - 443\n\nkeys:" > /opt/outline-ss-"${wgi}"/outline-ss-server.config
+                    echo -e "bittorrent_filter:\n  block_duration: 60\n  udp_allowed_ports:\n    - 53\n    - 443\n  tcp_allowed_ports:\n    - 80\n    - 443\n\nkeys:" > /opt/outline-ss-"${wgi}"/outline-ss-server.config
                 fi
 
                 systemctl start wg-quick-ns@"${wgi}"
